@@ -17,9 +17,22 @@ import {
   ToolsGrid,
 } from "@/components/lesson/RichBlocks";
 
-export function LessonBody({ content }: { content: LessonBodyContent }) {
+export function LessonBody({
+  content,
+  bodyHtml,
+}: {
+  content: LessonBodyContent;
+  bodyHtml?: string | null;
+}) {
   return (
     <div className="flex flex-col">
+      {bodyHtml && (
+        <div
+          className="prose prose-sm max-w-[68ch] text-[15px] leading-relaxed text-ink-soft mb-4 [&_h3]:font-display [&_h3]:font-bold [&_h3]:text-lg [&_h3]:text-ink [&_h3]:mt-7 [&_h3]:mb-3 [&_img]:rounded-lg [&_img]:max-w-full [&_a]:text-accent-ink [&_ul]:list-disc [&_ul]:pl-5"
+          // Contenu rédigé exclusivement par des comptes admin (RLS) via l'éditeur Tiptap.
+          dangerouslySetInnerHTML={{ __html: bodyHtml }}
+        />
+      )}
       {content.blocks.map((block, i) => (
         <Block key={i} block={block} />
       ))}

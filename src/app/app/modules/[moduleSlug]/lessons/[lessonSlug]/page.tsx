@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LessonBody } from "@/components/lesson/LessonBody";
 import { Quiz } from "@/components/quiz/Quiz";
 import { markLessonComplete, addNote } from "@/lib/actions/lesson";
+import { getAccessSummary, moduleIsUnlocked } from "@/lib/entitlements";
 import type { LessonBodyContent } from "@/lib/lesson-blocks";
 
 export default async function LessonPage({
@@ -20,10 +21,15 @@ export default async function LessonPage({
 
   const { data: courseModule } = await supabase
     .from("modules")
-    .select("id, number, title, slug")
+    .select("id, number, title, slug, is_free")
     .eq("slug", moduleSlug)
     .single();
   if (!courseModule) notFound();
+
+  const access = await getAccessSummary(supabase, user.id);
+  if (!moduleIsUnlocked(courseModule, access)) {
+    redirect("/app");
+  }
 
   const { data: lessons } = await supabase
     .from("lessons")
@@ -40,7 +46,7 @@ export default async function LessonPage({
 
   const { data: fullLesson } = await supabase
     .from("lessons")
-    .select("body_content, duration_minutes")
+    .select("body_content, body_html, video_id, duration_minutes")
     .eq("id", lesson.id)
     .single();
 
@@ -138,7 +144,18 @@ export default async function LessonPage({
           {lesson.title}
         </h1>
 
-        <LessonBody content={content} />
+        {fullLesson?.video_id && (
+          <div className="aspect-video rounded-xl overflow-hidden border border-line mb-6 bg-ink">
+            <iframe
+              src={fullLesson.video_id}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        )}
+
+        <LessonBody content={content} bodyHtml={fullLesson?.body_html} />
 
         {quizQuestions && quizQuestions.length > 0 && (
           <section className="mt-9 border-t border-line pt-7">
