@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { ContentStatus } from "@/lib/supabase/types";
+import type { ContentStatus, Database } from "@/lib/supabase/types";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -42,6 +42,7 @@ export async function saveModule(moduleId: string | null, formData: FormData) {
     status: (formData.get("status") === "published" ? "published" : "draft") as ContentStatus,
     sort_order: Number(formData.get("number")),
     chariow_product_id: String(formData.get("chariow_product_id") ?? "").trim() || null,
+    certificate_blurb: String(formData.get("certificate_blurb") ?? "").trim() || null,
   };
 
   if (moduleId) {
@@ -170,4 +171,147 @@ export async function setUserRole(userId: string, role: "learner" | "admin") {
   const supabase = await requireAdmin();
   await supabase.from("profiles").update({ role }).eq("id", userId);
   revalidatePath(`/admin/learners/${userId}`);
+}
+
+// ============================================================ CERTIFICATS
+export async function revokeCertificate(certId: string) {
+  const supabase = await requireAdmin();
+  await supabase.from("certificates").delete().eq("id", certId);
+  revalidatePath("/admin/certificates");
+}
+
+export async function issueCertificateManually(formData: FormData) {
+  const { randomUUID } = await import("crypto");
+  const supabase = await requireAdmin();
+  const userId = String(formData.get("user_id") ?? "");
+  const moduleId = String(formData.get("module_id") ?? "") || null;
+  if (!userId) return;
+
+  await supabase.from("certificates").insert({
+    user_id: userId,
+    module_id: moduleId,
+    public_slug: randomUUID().replace(/-/g, "").slice(0, 16),
+  });
+  revalidatePath("/admin/certificates");
+}
+
+// ============================================================ ANNONCES
+export async function savePost(postId: string | null, formData: FormData) {
+  const supabase = await requireAdmin();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const payload = {
+    title: String(formData.get("title") ?? "").trim(),
+    body: String(formData.get("body") ?? "").trim(),
+    category: String(formData.get("category") ?? "annonce") as
+      | "annonce"
+      | "question"
+      | "entraide"
+      | "discussion",
+    pinned: formData.get("pinned") === "on",
+  };
+
+  if (postId) {
+    await supabase.from("posts").update(payload).eq("id", postId);
+  } else {
+    await supabase.from("posts").insert({ ...payload, author_id: user!.id });
+  }
+  revalidatePath("/admin/posts");
+}
+
+export async function deletePost(postId: string) {
+  const supabase = await requireAdmin();
+  await supabase.from("posts").delete().eq("id", postId);
+  revalidatePath("/admin/posts");
+}
+
+// ============================================================ OFFRES D'EMPLOI
+export async function saveJob(jobId: string | null, formData: FormData) {
+  const supabase = await requireAdmin();
+  const payload = {
+    title: String(formData.get("title") ?? "").trim(),
+    company: String(formData.get("company") ?? "").trim(),
+    location: String(formData.get("location") ?? "").trim() || null,
+    remote: formData.get("remote") === "on",
+    apply_url: String(formData.get("apply_url") ?? "").trim(),
+    description: String(formData.get("description") ?? "").trim() || null,
+    status: (formData.get("status") === "expired" ? "expired" : "active") as "active" | "expired",
+    expires_at: String(formData.get("expires_at") ?? "") || null,
+  };
+
+  if (jobId) {
+    await supabase.from("jobs").update(payload).eq("id", jobId);
+  } else {
+    await supabase.from("jobs").insert(payload);
+  }
+  revalidatePath("/admin/jobs");
+}
+
+export async function toggleJobStatus(jobId: string, currentStatus: string) {
+  const supabase = await requireAdmin();
+  await supabase
+    .from("jobs")
+    .update({ status: currentStatus === "active" ? "expired" : "active" })
+    .eq("id", jobId);
+  revalidatePath("/admin/jobs");
+}
+
+export async function deleteJob(jobId: string) {
+  const supabase = await requireAdmin();
+  await supabase.from("jobs").delete().eq("id", jobId);
+  revalidatePath("/admin/jobs");
+}
+
+// ============================================================ LIVES
+export async function saveEvent(eventId: string | null, formData: FormData) {
+  const supabase = await requireAdmin();
+  const payload = {
+    title: String(formData.get("title") ?? "").trim(),
+    description: String(formData.get("description") ?? "").trim() || null,
+    starts_at: String(formData.get("starts_at") ?? ""),
+    join_url: String(formData.get("join_url") ?? "").trim() || null,
+    replay_url: String(formData.get("replay_url") ?? "").trim() || null,
+  };
+
+  if (eventId) {
+    await supabase.from("events").update(payload).eq("id", eventId);
+  } else {
+    await supabase.from("events").insert(payload);
+  }
+  revalidatePath("/admin/events");
+}
+
+export async function deleteEvent(eventId: string) {
+  const supabase = await requireAdmin();
+  await supabase.from("events").delete().eq("id", eventId);
+  revalidatePath("/admin/events");
+}
+
+// ============================================================ PARAMÈTRES
+export async function saveSettings(formData: FormData) {
+  const supabase = await requireAdmin();
+
+  const patch: Database["public"]["Tables"]["platform_settings"]["Update"] = {
+    brand_name: String(formData.get("brand_name") ?? "DataLendo").trim(),
+    brand_accent_color: String(formData.get("brand_accent_color") ?? "").trim() || null,
+    certificate_location: String(formData.get("certificate_location") ?? "").trim() || null,
+  };
+
+  // Champs write-only : on ne les écrase que si l'admin a tapé une nouvelle
+  // valeur — un champ laissé vide conserve le secret déjà enregistré.
+  const secretKeys = [
+    "chariow_api_key",
+    "chariow_webhook_secret",
+    "chariow_module_product_id",
+    "chariow_full_access_product_id",
+  ] as const;
+  for (const key of secretKeys) {
+    const value = String(formData.get(key) ?? "").trim();
+    if (value) patch[key] = value;
+  }
+
+  await supabase.from("platform_settings").update(patch).eq("id", true);
+  revalidatePath("/admin/settings");
 }

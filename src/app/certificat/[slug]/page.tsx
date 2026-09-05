@@ -1,5 +1,11 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { CertificateCard } from "@/components/certificate/CertificateCard";
+import { ShareBar } from "@/components/certificate/ShareBar";
+import { buildLinkedInAddUrl, buildShareUrls, generateQrSvg } from "@/lib/certificate";
+
+const DEFAULT_BLURB =
+  "L'apprenant a démontré, quiz à l'appui, sa maîtrise des compétences couvertes par ce module du parcours Data Engineer de DataLendo.";
 
 export default async function CertificatePage({
   params,
@@ -11,67 +17,73 @@ export default async function CertificatePage({
 
   const { data: cert } = await supabase
     .from("certificates")
-    .select("issued_at, module_id, user_id")
+    .select("issued_at, module_id, user_id, public_slug")
     .eq("public_slug", slug)
     .single();
   if (!cert) notFound();
 
-  const [{ data: profile }, moduleResult] = await Promise.all([
+  const [{ data: profile }, moduleResult, { data: settings }] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", cert.user_id).single(),
     cert.module_id
-      ? supabase.from("modules").select("title, number").eq("id", cert.module_id).single()
+      ? supabase
+          .from("modules")
+          .select("title, number, certificate_blurb")
+          .eq("id", cert.module_id)
+          .single()
       : Promise.resolve({ data: null }),
+    supabase.from("platform_settings").select("certificate_location").eq("id", true).maybeSingle(),
   ]);
   const courseModule = moduleResult.data;
 
-  const issuedDate = new Date(cert.issued_at).toLocaleDateString("fr-FR", {
+  const issuedAt = new Date(cert.issued_at);
+  const issuedDate = issuedAt.toLocaleDateString("fr-FR", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 
+  const learnerName = profile?.full_name || "Apprenant·e DataLendo";
+  const certificationName = courseModule
+    ? `Data Engineering — ${courseModule.title}`
+    : "Certificat Data Engineer — DataLendo";
+
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const certUrl = `${origin}/certificat/${slug}`;
+
+  const [qrSvg] = await Promise.all([generateQrSvg(certUrl)]);
+
+  const linkedInUrl = buildLinkedInAddUrl({
+    certificationName,
+    organizationName: "DataLendo",
+    issuedAt,
+    certUrl,
+    certId: slug,
+  });
+  const shareUrls = buildShareUrls(certUrl, `${learnerName} a obtenu : ${certificationName}`);
+
   return (
-    <div className="flex-1 flex items-center justify-center px-6 py-16 bg-surface-2">
-      <div className="w-full max-w-2xl bg-surface border border-line rounded-2xl px-10 py-12 text-center shadow-[0_30px_60px_-30px_rgba(20,21,43,0.3)]">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <LogoMark />
-          <span className="font-display font-bold text-ink">DataLendo</span>
-        </div>
-
-        <div className="font-mono text-xs uppercase tracking-wide text-accent-ink mb-3">
-          Certificat de réussite
-        </div>
-        <h1 className="font-display font-bold text-3xl text-ink mb-2">
-          {profile?.full_name || "Apprenant·e DataLendo"}
-        </h1>
-        <p className="text-ink-soft mb-8">
-          a validé{" "}
-          {courseModule ? (
-            <>
-              le Module {String(courseModule.number).padStart(2, "0")} —{" "}
-              <strong className="text-ink">{courseModule.title}</strong>
-            </>
-          ) : (
-            <strong className="text-ink">le programme complet DataLendo — Data Engineer</strong>
-          )}
-        </p>
-
-        <div className="font-mono text-xs text-ink-faint">Délivré le {issuedDate}</div>
-        <div className="font-mono text-[11px] text-ink-faint mt-1">
-          Vérifiable à cette adresse — code {slug}
-        </div>
+    <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 bg-surface-2">
+      <div className="w-full max-w-3xl">
+        <CertificateCard
+          id="certificate-card"
+          learnerName={learnerName}
+          moduleNumber={courseModule?.number ?? null}
+          moduleTitle={courseModule?.title ?? null}
+          blurb={courseModule?.certificate_blurb || DEFAULT_BLURB}
+          issuedDate={issuedDate}
+          location={settings?.certificate_location ?? null}
+          certId={slug}
+          qrSvg={qrSvg}
+        />
       </div>
-    </div>
-  );
-}
 
-function LogoMark() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="10" r="5" fill="#6C5CE7" />
-      <circle cx="9" cy="14" r="3.4" fill="#6C5CE7" opacity=".75" />
-      <circle cx="23" cy="14" r="3.4" fill="#6C5CE7" opacity=".75" />
-      <rect x="14.5" y="14" width="3" height="13" rx="1.5" fill="#6C5CE7" />
-    </svg>
+      <ShareBar
+        targetId="certificate-card"
+        certUrl={certUrl}
+        linkedInUrl={linkedInUrl}
+        shareUrls={shareUrls}
+        fileName={`certificat-datalendo-${slug}.png`}
+      />
+    </div>
   );
 }

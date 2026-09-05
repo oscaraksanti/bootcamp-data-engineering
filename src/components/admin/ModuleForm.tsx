@@ -73,6 +73,18 @@ export function ModuleForm({ module: m }: { module?: ModuleRow }) {
         />
       </div>
 
+      <div>
+        <label className="block text-xs font-semibold text-ink-soft mb-1.5">
+          Paragraphe du certificat (ce que l&apos;apprenant a maîtrisé)
+        </label>
+        <textarea
+          name="certificate_blurb"
+          defaultValue={m?.certificate_blurb ?? ""}
+          placeholder="Laisser vide pour utiliser le texte par défaut."
+          className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm text-ink outline-none focus:border-accent resize-none h-20"
+        />
+      </div>
+
       <div className="flex items-center gap-6">
         <label className="flex items-center gap-2 text-sm text-ink-soft">
           <input type="checkbox" name="is_free" defaultChecked={m?.is_free} />

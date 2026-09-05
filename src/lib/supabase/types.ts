@@ -62,6 +62,7 @@ export interface Database {
           status: ContentStatus;
           sort_order: number;
           chariow_product_id: string | null;
+          certificate_blurb: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["modules"]["Row"]>;
@@ -234,6 +235,7 @@ export interface Database {
           chariow_full_access_product_id: string | null;
           brand_name: string;
           brand_accent_color: string | null;
+          certificate_location: string | null;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["platform_settings"]["Row"]>;

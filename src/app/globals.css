@@ -100,3 +100,13 @@
 body {
   font-variant-numeric: normal;
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 0.4in;
+  }
+  body {
+    background: #fff;
+  }
+}

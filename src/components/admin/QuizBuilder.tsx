@@ -48,21 +48,16 @@ function QuestionRow({
 }) {
   return (
     <details className="border border-line rounded-lg px-4 py-3 bg-surface-2">
-      <summary className="text-sm text-ink cursor-pointer flex items-center justify-between">
-        <span>{q.question}</span>
-        <form
-          action={deleteQuizQuestion.bind(null, moduleId, lessonId, q.id)}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button type="submit" className="text-xs text-danger hover:underline ml-3">
-            Supprimer
-          </button>
-        </form>
-      </summary>
+      <summary className="text-sm text-ink cursor-pointer">{q.question}</summary>
       <QuestionFormFields
         action={saveQuizQuestion.bind(null, lessonId, moduleId, q.id)}
         defaultValues={q}
       />
+      <form action={deleteQuizQuestion.bind(null, moduleId, lessonId, q.id)} className="mt-2">
+        <button type="submit" className="text-xs text-danger hover:underline">
+          Supprimer cette question
+        </button>
+      </form>
     </details>
   );
 }
