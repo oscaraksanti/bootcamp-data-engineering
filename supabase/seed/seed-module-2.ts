@@ -2401,53 +2401,535 @@ async function main() {
     },
 
     // ============================================================
-    // 2.4 — WINDOW FUNCTIONS & SQL ANALYTIQUE
+    // CHAPITRE 2.4 — WINDOW FUNCTIONS & SQL ANALYTIQUE
     // ============================================================
     {
       number: "2.4",
       slug: "window-functions-sql-analytique",
       title: "Window Functions & SQL analytique",
-      duration_minutes: 240,
+      duration_minutes: 15,
       sort_order: 4,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "GROUP BY écrase les lignes en groupes. Les window functions font l'inverse : elles calculent un agrégat tout en gardant chaque ligne individuelle visible. C'est la compétence qui distingue le plus nettement un SQL de débutant d'un SQL de data engineer.",
+            text: "GROUP BY écrase les lignes en groupes. Les window functions font l'inverse : elles calculent un agrégat tout en gardant chaque ligne individuelle visible. C'est la compétence qui distingue le plus nettement un SQL de débutant d'un SQL de data engineer — et l'une des plus demandées en entretien technique.",
           },
-          { type: "h3", text: "OVER, PARTITION BY, ORDER BY" },
+          {
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
+            items: [
+              "2.4.1 — OVER() : la syntaxe de base d'une window function",
+              "2.4.2 — PARTITION BY : calculer par groupe sans regrouper",
+              "2.4.3 — Le cadre de fenêtre (frame) et ROWS BETWEEN",
+              "2.4.4 — ROW_NUMBER, RANK, DENSE_RANK",
+              "2.4.5 — NTILE et les quantiles",
+              "2.4.6 — LAG et LEAD : comparer à la ligne précédente/suivante",
+              "2.4.7 — Running totals et cumul depuis le début de l'année (YTD)",
+              "2.4.8 — Détection d'anomalies avec des statistiques de fenêtre",
+              "2.4.9 — LATERAL JOIN et as-of join : le taux de change historique",
+              "2.4.10 — Atelier de synthèse du chapitre",
+            ],
+          },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.4.1",
+      slug: "over-syntaxe-de-base",
+      title: "OVER() : la syntaxe de base d'une window function",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 25,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une window function s'écrit comme une fonction d'agrégat classique, suivie de OVER(...). C'est ce OVER() qui change tout : au lieu d'écraser les lignes, le calcul s'affiche sur CHAQUE ligne individuelle.",
+          },
           {
             type: "sql_code",
-            text: "-- Chaque transaction, avec le total de son pays affiché sur CHAQUE ligne\nselect transaction_id, country_code, amount_local,\n  sum(amount_local) over (partition by country_code) as total_pays\nfrom fact_transactions\nlimit 10;",
+            text: "-- Comparaison directe : GROUP BY écrase, OVER() garde chaque ligne\n\n-- GROUP BY : une ligne PAR pays\nselect country_code, sum(amount_local) as total\nfrom fact_transactions\ngroup by country_code;\n\n-- OVER() : une ligne PAR TRANSACTION, avec le total de son pays affiché en plus\nselect transaction_id, country_code, amount_local,\n  sum(amount_local) over (partition by country_code) as total_pays\nfrom fact_transactions\nlimit 10;",
           },
-          { type: "h3", text: "Ranking : ROW_NUMBER, RANK, DENSE_RANK, NTILE" },
+          {
+            type: "callout",
+            title: "Ce que OVER() change concrètement",
+            text: "Sans OVER(), sum(amount_local) est un agrégat classique qui nécessite un GROUP BY et réduit le nombre de lignes. Avec OVER(), la même fonction devient une window function : elle calcule sur un ensemble de lignes (la \"fenêtre\") mais renvoie une valeur pour CHAQUE ligne d'origine, sans en supprimer aucune.",
+          },
+          {
+            type: "p",
+            text: "OVER() peut rester vide — dans ce cas, la fenêtre est TOUTE la table.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Chaque transaction avec le volume TOTAL de toutes les transactions (fenêtre = table entière)\nselect transaction_id, amount_local,\n  sum(amount_local) over () as volume_total_toutes_transactions\nfrom fact_transactions\nlimit 5;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Affiche chaque transaction avec le montant moyen de TOUTES les transactions, sans regrouper.",
+            starterQuery:
+              "select transaction_id, amount_local,\n  avg(amount_local) over () as moyenne_generale\nfrom fact_transactions\nlimit 10;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que fait OVER() ajouté à une fonction comme sum() ou avg() ?",
+          options: [
+            "Il transforme la fonction en window function, qui garde chaque ligne visible",
+            "Il trie automatiquement le résultat",
+            "Il ne fait rien de particulier",
+          ],
+          correct_index: 0,
+          explain: "C'est la différence fondamentale avec un agrégat classique nécessitant GROUP BY.",
+        },
+        {
+          question: "Que représente la fenêtre quand OVER() est laissé complètement vide ?",
+          options: ["Aucune ligne", "Toute la table", "Uniquement la ligne courante"],
+          correct_index: 1,
+          explain: "Sans PARTITION BY, la fenêtre par défaut couvre l'ensemble des lignes du résultat.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.2",
+      slug: "partition-by-calculer-par-groupe",
+      title: "PARTITION BY : calculer par groupe sans regrouper",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 25,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "PARTITION BY découpe la fenêtre en sous-groupes — le calcul se réinitialise pour chaque valeur distincte de la colonne de partition, exactement comme GROUP BY le ferait, mais sans jamais réduire le nombre de lignes du résultat.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Chaque transaction, avec le total de SON pays affiché sur CHAQUE ligne\nselect transaction_id, country_code, amount_local,\n  sum(amount_local) over (partition by country_code) as total_pays,\n  round(100.0 * amount_local / sum(amount_local) over (partition by country_code), 2) as pct_du_pays\nfrom fact_transactions\norder by country_code\nlimit 15;",
+          },
+          {
+            type: "callout",
+            title: "Un cas d'usage impossible avec GROUP BY seul",
+            text: "Calculer \"quel pourcentage du volume total de son pays représente CETTE transaction\" exige de connaître à la fois la valeur de la ligne ET le total du groupe, sur la MÊME ligne. GROUP BY ne peut pas faire ça seul (il faudrait joindre le résultat groupé à la table d'origine) — PARTITION BY le fait nativement, en une seule passe.",
+          },
+          { type: "h3", text: "Partitionner sur plusieurs colonnes" },
+          {
+            type: "sql_code",
+            text: "-- Le total PAR combinaison (pays, canal), affiché sur chaque ligne\nselect transaction_id, country_code, channel, amount_local,\n  sum(amount_local) over (partition by country_code, channel) as total_pays_canal\nfrom fact_transactions\nlimit 15;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Affiche chaque transaction avec le nombre total de transactions de son canal de paiement.",
+            starterQuery:
+              "select transaction_id, channel, amount_local,\n  count(*) over (partition by channel) as nb_transactions_du_canal\nfrom fact_transactions\nlimit 15;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "PARTITION BY, contrairement à GROUP BY :",
+          options: [
+            "Réduit le nombre de lignes du résultat",
+            "Découpe la fenêtre en sous-groupes sans réduire le nombre de lignes",
+            "Ne peut être utilisé qu'une seule fois par requête",
+          ],
+          correct_index: 1,
+          explain: "C'est ce qui permet d'afficher \"la part du total\" sur chaque ligne individuelle.",
+        },
+        {
+          question: "Peut-on partitionner sur plusieurs colonnes à la fois ?",
+          options: ["Non, une seule colonne maximum", "Oui — PARTITION BY col1, col2", "Seulement avec ROW_NUMBER"],
+          correct_index: 1,
+          explain: "Exactement comme GROUP BY, PARTITION BY accepte plusieurs colonnes séparées par une virgule.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.3",
+      slug: "cadre-fenetre-rows-between",
+      title: "Le cadre de fenêtre (frame) et ROWS BETWEEN",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 25,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Quand une window function inclut un ORDER BY, elle n'opère plus forcément sur TOUTE la partition — elle opère sur un cadre (frame) : un sous-ensemble de lignes autour de la ligne courante, défini par ROWS BETWEEN.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Par défaut, avec ORDER BY : le cadre va du début de la partition JUSQU'À la ligne courante\nselect transaction_id, transaction_at, amount_local,\n  sum(amount_local) over (order by transaction_at) as cumul_depuis_le_debut\nfrom fact_transactions\nwhere country_code = 'CI'\norder by transaction_at\nlimit 10;",
+          },
+          {
+            type: "table",
+            headers: ["Clause de cadre", "Signifie"],
+            rows: [
+              ["ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW", "Du début de la partition jusqu'à la ligne courante (le défaut avec ORDER BY)"],
+              ["ROWS BETWEEN 2 PRECEDING AND CURRENT ROW", "Une fenêtre glissante des 2 lignes précédentes + la ligne courante"],
+              ["ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING", "De la ligne courante jusqu'à la fin de la partition"],
+              ["ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING", "Toute la partition, peu importe la ligne courante (équivalent à sans ORDER BY)"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Moyenne glissante sur les 3 dernières transactions (la courante + les 2 précédentes)\nselect transaction_id, transaction_at, amount_local,\n  avg(amount_local) over (\n    order by transaction_at\n    rows between 2 preceding and current row\n  ) as moyenne_glissante_3\nfrom fact_transactions\nwhere country_code = 'CI'\norder by transaction_at\nlimit 15;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Une moyenne glissante (rolling average) lisse les variations ponctuelles pour révéler une tendance — très utilisé en détection de fraude et en monitoring : une transaction isolée inhabituelle compte moins qu'une dérive progressive sur plusieurs jours.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Calcule une moyenne glissante sur 5 transactions pour les paiements marchands au Sénégal.",
+            starterQuery:
+              "select transaction_id, transaction_at, amount_local,\n  avg(amount_local) over (\n    order by transaction_at\n    rows between 4 preceding and current row\n  ) as moyenne_glissante_5\nfrom fact_transactions\nwhere country_code = 'SN'\norder by transaction_at\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel est le cadre par défaut d'une window function qui utilise ORDER BY sans préciser ROWS BETWEEN ?",
+          options: [
+            "Toute la partition, sans distinction",
+            "Du début de la partition jusqu'à la ligne courante",
+            "Seulement la ligne courante",
+          ],
+          correct_index: 1,
+          explain: "C'est ce qui rend les cumuls (running totals) possibles simplement en ajoutant un ORDER BY.",
+        },
+        {
+          question: "À quoi sert une moyenne glissante (rolling average) sur les N dernières lignes ?",
+          options: [
+            "À supprimer les valeurs aberrantes définitivement",
+            "À lisser les variations ponctuelles et révéler une tendance",
+            "À trier les données par ordre alphabétique",
+          ],
+          correct_index: 1,
+          explain: "Utile en détection d'anomalies : une dérive progressive ressort mieux qu'un pic isolé.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.4",
+      slug: "row-number-rank-dense-rank",
+      title: "ROW_NUMBER, RANK, DENSE_RANK",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 25,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Trois fonctions de classement, qui se comportent différemment uniquement en cas d'ex-æquo — une nuance qui change complètement le résultat d'un \"top N par groupe\".",
+          },
+          {
+            type: "table",
+            headers: ["Fonction", "En cas d'ex-æquo", "Après un ex-æquo"],
+            rows: [
+              ["ROW_NUMBER()", "Attribue quand même des numéros différents (1, 2, 3...)", "Continue normalement (4, 5...)"],
+              ["RANK()", "Attribue le même rang aux ex-æquo (1, 1, 3...)", "Saute les rangs sautés (3, pas 2)"],
+              ["DENSE_RANK()", "Attribue le même rang aux ex-æquo (1, 1, 2...)", "Ne saute AUCUN rang (2, pas 3)"],
+            ],
+          },
           {
             type: "sql_code",
             text: "-- Le marchand n°1 par volume, dans CHAQUE pays (pas un top global)\nwith classement as (\n  select m.merchant_name, t.country_code, sum(t.amount_local) as volume,\n    rank() over (partition by t.country_code order by sum(t.amount_local) desc) as rang\n  from fact_transactions t\n  join dim_merchant m on m.merchant_id = t.merchant_id\n  group by m.merchant_name, t.country_code\n)\nselect * from classement where rang = 1;",
           },
-          { type: "h3", text: "Valeurs relatives : LAG, LEAD" },
+          {
+            type: "callout",
+            title: "🪤 Pourquoi le choix de la fonction change le résultat d'un \"top 1\"",
+            text: "Si deux marchands d'un même pays ont EXACTEMENT le même volume, RANK() et DENSE_RANK() leur donneront TOUS LES DEUX le rang 1 — un `where rang = 1` renverrait alors deux lignes pour ce pays, pas une seule. ROW_NUMBER() départagerait arbitrairement (selon l'ordre interne), garantissant toujours une seule ligne — mais en cachant l'ex-æquo réel. Le bon choix dépend de si l'ex-æquo doit être visible ou non.",
+          },
           {
             type: "sql_code",
-            text: "-- Évolution du volume mensuel par pays, mois précédent inclus\nwith mensuel as (\n  select country_code, date_trunc('month', transaction_at) as mois, sum(amount_local) as volume\n  from fact_transactions\n  group by 1, 2\n)\nselect country_code, mois, volume,\n  lag(volume) over (partition by country_code order by mois) as volume_mois_precedent\nfrom mensuel\norder by country_code, mois;",
+            text: "-- Comparaison côte à côte des trois fonctions sur les mêmes données\nselect merchant_name, volume,\n  row_number() over (order by volume desc) as rn,\n  rank() over (order by volume desc) as rk,\n  dense_rank() over (order by volume desc) as drk\nfrom (\n  select m.merchant_name, sum(t.amount_local) as volume\n  from fact_transactions t join dim_merchant m on m.merchant_id = t.merchant_id\n  group by m.merchant_name\n) as volumes\norder by volume desc\nlimit 10;",
           },
-          { type: "h3", text: "Running totals et cumul depuis le début de l'année (YTD)" },
+          {
+            type: "sql_sandbox",
+            prompt: "Trouve le TOP 3 des marchands par volume, dans chaque pays, avec ROW_NUMBER.",
+            starterQuery:
+              "with classement as (\n  select m.merchant_name, t.country_code, sum(t.amount_local) as volume,\n    row_number() over (partition by t.country_code order by sum(t.amount_local) desc) as rang\n  from fact_transactions t\n  join dim_merchant m on m.merchant_id = t.merchant_id\n  group by m.merchant_name, t.country_code\n)\nselect * from classement where rang <= 3\norder by country_code, rang;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "En cas d'ex-æquo, quelle est la différence entre RANK() et DENSE_RANK() ?",
+          options: [
+            "Aucune différence",
+            "RANK() saute des rangs après un ex-æquo, DENSE_RANK() n'en saute aucun",
+            "DENSE_RANK() ne fonctionne pas avec PARTITION BY",
+          ],
+          correct_index: 1,
+          explain: "Après deux lignes classées 1, RANK() donne 3 à la suivante, DENSE_RANK() donne 2.",
+        },
+        {
+          question: "Pourquoi ROW_NUMBER() garantit-il toujours exactement une ligne par `where rang = 1`, contrairement à RANK() ?",
+          options: [
+            "ROW_NUMBER() attribue toujours des numéros distincts, même en cas d'ex-æquo réel",
+            "ROW_NUMBER() ignore les ex-æquo et les supprime",
+            "Ce n'est pas vrai, le comportement est identique",
+          ],
+          correct_index: 0,
+          explain: "RANK() donnerait le même rang 1 à plusieurs lignes ex-æquo — ROW_NUMBER() les départage toujours arbitrairement.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.5",
+      slug: "ntile-quantiles",
+      title: "NTILE et les quantiles",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 20,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "NTILE(n) répartit les lignes ordonnées en n groupes de taille aussi égale que possible — l'outil direct pour des quantiles : quartiles (NTILE(4)), déciles (NTILE(10)), etc.",
+          },
           {
             type: "sql_code",
-            text: "select country_code, date_trunc('month', transaction_at) as mois,\n  sum(sum(amount_local)) over (\n    partition by country_code, extract(year from transaction_at)\n    order by date_trunc('month', transaction_at)\n  ) as cumul_ytd\nfrom fact_transactions\ngroup by 1, 2, extract(year from transaction_at)\norder by 1, 2;",
+            text: "-- Répartir les clients en 4 quartiles selon leur montant total dépensé\nwith total_client as (\n  select customer_id, sum(amount_local) as total_depense\n  from fact_transactions\n  group by customer_id\n)\nselect customer_id, total_depense,\n  ntile(4) over (order by total_depense desc) as quartile\nfrom total_client\norder by total_depense desc;",
           },
+          {
+            type: "callout",
+            title: "Cas d'usage typique : identifier le top 25% des clients",
+            text: "`ntile(4)` avec `order by total_depense desc` place les plus gros clients dans le quartile 1 — un filtre `where quartile = 1` isole immédiatement le top 25%, sans avoir à calculer un seuil de montant manuellement. Très utilisé en segmentation marketing et en priorisation commerciale.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Isoler le top 25% des clients par dépense\nwith total_client as (\n  select customer_id, sum(amount_local) as total_depense\n  from fact_transactions group by customer_id\n),\nquartiles as (\n  select customer_id, total_depense,\n    ntile(4) over (order by total_depense desc) as quartile\n  from total_client\n)\nselect c.full_name, q.total_depense\nfrom quartiles q\njoin dim_customer c on c.customer_id = q.customer_id\nwhere q.quartile = 1\norder by q.total_depense desc;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Répartis les marchands en 5 groupes (quintiles) selon leur volume total de transactions reçues.",
+            starterQuery:
+              "with volume_marchand as (\n  select merchant_id, sum(amount_local) as volume\n  from fact_transactions group by merchant_id\n)\nselect merchant_id, volume,\n  ntile(5) over (order by volume desc) as quintile\nfrom volume_marchand\norder by volume desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que fait NTILE(4) combiné à un ORDER BY ?",
+          options: [
+            "Il classe chaque ligne avec un numéro unique",
+            "Il répartit les lignes ordonnées en 4 groupes de taille à peu près égale",
+            "Il calcule une moyenne sur 4 lignes"
+          ],
+          correct_index: 1,
+          explain: "C'est l'outil direct pour des quartiles, déciles, ou tout autre découpage en n parts égales.",
+        },
+        {
+          question: "Pour isoler le top 25% des clients par dépense, quelle combinaison utiliser ?",
+          options: [
+            "NTILE(4) avec ORDER BY total_depense DESC, puis filtrer quartile = 1",
+            "RANK() avec un LIMIT 25",
+            "GROUP BY sans window function",
+          ],
+          correct_index: 0,
+          explain: "Le quartile 1 (avec un ORDER BY décroissant) contient automatiquement les plus gros dépensiers.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.6",
+      slug: "lag-lead-valeurs-relatives",
+      title: "LAG et LEAD : comparer à la ligne précédente/suivante",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "LAG regarde en arrière dans la fenêtre ordonnée, LEAD regarde en avant — sans jamais avoir besoin d'un self-join sur des dates décalées, une technique bien plus lourde utilisée avant l'existence des window functions.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Évolution du volume mensuel par pays, mois précédent inclus sur la même ligne\nwith mensuel as (\n  select country_code, date_trunc('month', transaction_at) as mois, sum(amount_local) as volume\n  from fact_transactions\n  group by 1, 2\n)\nselect country_code, mois, volume,\n  lag(volume) over (partition by country_code order by mois) as volume_mois_precedent,\n  round(100.0 * (volume - lag(volume) over (partition by country_code order by mois))\n    / lag(volume) over (partition by country_code order by mois), 1) as variation_pct\nfrom mensuel\norder by country_code, mois;",
+          },
+          {
+            type: "callout",
+            title: "Le premier mois n'a pas de \"précédent\" — LAG renvoie NULL",
+            text: "Pour la toute première ligne de chaque partition, il n'existe rien avant elle : LAG renvoie NULL par défaut. Un deuxième argument optionnel — `lag(volume, 1, 0)` — permet de fournir une valeur de repli plutôt que NULL, utile pour éviter des NULL en cascade dans un calcul de variation.",
+          },
+          {
+            type: "sql_code",
+            text: "-- LEAD : voir la valeur SUIVANTE — utile pour calculer un intervalle entre deux dates\nselect customer_id, transaction_at,\n  lead(transaction_at) over (partition by customer_id order by transaction_at) as prochaine_transaction,\n  lead(transaction_at) over (partition by customer_id order by transaction_at) - transaction_at as delai\nfrom fact_transactions\norder by customer_id, transaction_at\nlimit 15;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Calcule, pour chaque client, le délai entre deux transactions consécutives.",
+            starterQuery:
+              "select customer_id, transaction_at,\n  transaction_at - lag(transaction_at) over (partition by customer_id order by transaction_at) as delai_depuis_precedente\nfrom fact_transactions\norder by customer_id, transaction_at\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que renvoie LAG(colonne) pour la toute première ligne d'une partition ?",
+          options: ["Une erreur", "NULL par défaut", "0 par défaut"],
+          correct_index: 1,
+          explain: "Un deuxième et troisième argument optionnels de LAG permettent de fournir une valeur de repli différente de NULL.",
+        },
+        {
+          question: "LEAD(transaction_at) sur une fenêtre ordonnée par date, partitionnée par client, renvoie :",
+          options: [
+            "La date de la transaction précédente du même client",
+            "La date de la PROCHAINE transaction du même client",
+            "La date actuelle du système",
+          ],
+          correct_index: 1,
+          explain: "LEAD regarde en avant dans l'ordre défini par la fenêtre — LAG regarde en arrière.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.7",
+      slug: "running-totals-cumul-ytd",
+      title: "Running totals et cumul depuis le début de l'année (YTD)",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 25,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un running total (cumul progressif) répond à \"combien au total jusqu'ici\" — une métrique business extrêmement courante en reporting financier, exactement le genre de calcul qu'AfriPay veut suivre mois après mois.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Cumul YTD (year-to-date) : le total accumulé depuis janvier de la même année, par pays\nselect country_code, date_trunc('month', transaction_at) as mois,\n  sum(sum(amount_local)) over (\n    partition by country_code, extract(year from transaction_at)\n    order by date_trunc('month', transaction_at)\n  ) as cumul_ytd\nfrom fact_transactions\ngroup by 1, 2, extract(year from transaction_at)\norder by 1, 2;",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi sum(sum(...)) — un agrégat DANS une window function",
+            text: "La requête calcule d'abord un GROUP BY classique (le volume mensuel), PUIS applique une window function sur ce résultat déjà agrégé. C'est la combinaison agrégat + fenêtre : le sum() intérieur est l'agrégat par groupe (mois), le sum() over() extérieur est le cumul progressif sur ces groupes déjà résumés.",
+          },
+          {
+            type: "p",
+            text: "PARTITION BY inclut extract(year from transaction_at) : le cumul se réinitialise à zéro à chaque nouvelle année — sans quoi le YTD de janvier 2025 continuerait le cumul de décembre 2024, ce qui n'aurait aucun sens business.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Calcule le cumul du nombre de transactions (pas du montant) mois par mois pour le Maroc.",
+            starterQuery:
+              "select date_trunc('month', transaction_at) as mois, count(*) as nb_mensuel,\n  sum(count(*)) over (order by date_trunc('month', transaction_at)) as cumul\nfrom fact_transactions\nwhere country_code = 'MA'\ngroup by 1\norder by 1;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi PARTITION BY doit-il inclure l'année dans un calcul de cumul YTD ?",
+          options: [
+            "Ce n'est pas nécessaire",
+            "Pour que le cumul se réinitialise à zéro à chaque nouvelle année plutôt que de continuer indéfiniment",
+            "Parce que PARTITION BY exige toujours au moins deux colonnes",
+          ],
+          correct_index: 1,
+          explain: "Sans ça, janvier 2025 continuerait le cumul de décembre 2024 — incohérent pour un indicateur \"depuis le début de l'année\".",
+        },
+        {
+          question: "Dans `sum(sum(amount_local)) over (...)`, à quoi sert le sum() intérieur ?",
+          options: [
+            "Rien, c'est redondant",
+            "C'est l'agrégat GROUP BY classique (par mois), sur lequel la window function calcule ensuite le cumul",
+            "Il annule l'effet du sum() extérieur",
+          ],
+          correct_index: 1,
+          explain: "On combine ici un agrégat classique et une window function sur son résultat.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.8",
+      slug: "detection-anomalies-statistiques-fenetre",
+      title: "Détection d'anomalies avec des statistiques de fenêtre",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 30,
+      sort_order: 8,
+      body_content: {
+        blocks: [
           {
             type: "thinking_prompt",
             text: "Comment détecter une transaction suspecte sans écrire une boucle procédurale ? Compare chaque montant à la moyenne (et l'écart-type) des transactions du même client — une window function le fait en une seule requête, là où un langage procédural écrirait une boucle par client.",
           },
           {
             type: "sql_code",
-            text: "-- Transactions dont le montant dépasse 3x la moyenne du client\nwith stats_client as (\n  select transaction_id, amount_local, customer_id,\n    avg(amount_local) over (partition by customer_id) as moyenne_client\n  from fact_transactions\n)\nselect * from stats_client where amount_local > 3 * moyenne_client;",
+            text: "-- Transactions dont le montant dépasse 3x la moyenne DU MÊME CLIENT\nwith stats_client as (\n  select transaction_id, amount_local, customer_id,\n    avg(amount_local) over (partition by customer_id) as moyenne_client\n  from fact_transactions\n)\nselect * from stats_client where amount_local > 3 * moyenne_client;",
           },
-          { type: "h3", text: "As-of join : convertir chaque transaction au bon taux de change" },
+          {
+            type: "callout",
+            title: "Pourquoi comparer au client, et pas à la moyenne globale",
+            text: "Un client qui dépense typiquement 500 par transaction et un autre qui dépense typiquement 10 n'ont pas le même seuil d'anomalie. Comparer chaque transaction à SON PROPRE historique (via PARTITION BY customer_id) détecte des écarts individuels que la moyenne globale masquerait complètement.",
+          },
+          { type: "h3", text: "Aller plus loin : l'écart-type (STDDEV)" },
+          {
+            type: "sql_code",
+            text: "-- Un score de déviation plus rigoureux : combien d'écarts-types du montant habituel ?\nwith stats_client as (\n  select transaction_id, amount_local, customer_id,\n    avg(amount_local) over (partition by customer_id) as moyenne,\n    stddev(amount_local) over (partition by customer_id) as ecart_type\n  from fact_transactions\n)\nselect transaction_id, customer_id, amount_local, moyenne,\n  round((amount_local - moyenne) / nullif(ecart_type, 0), 2) as score_z\nfrom stats_client\nwhere ecart_type > 0\norder by abs((amount_local - moyenne) / nullif(ecart_type, 0)) desc\nlimit 20;",
+            caption: "Un score-z (z-score) au-delà de ±2 ou ±3 signale statistiquement une valeur inhabituelle — nullif évite une division par zéro si un client n'a qu'une seule transaction.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Trouve les transactions dont le montant dépasse 2 écarts-types de la moyenne de leur marchand.",
+            starterQuery:
+              "with stats_marchand as (\n  select transaction_id, merchant_id, amount_local,\n    avg(amount_local) over (partition by merchant_id) as moyenne,\n    stddev(amount_local) over (partition by merchant_id) as ecart_type\n  from fact_transactions\n)\nselect * from stats_marchand\nwhere ecart_type > 0 and abs(amount_local - moyenne) > 2 * ecart_type\norder by amount_local desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi partitionner par customer_id plutôt que comparer à la moyenne globale pour détecter une anomalie ?",
+          options: [
+            "Chaque client a un comportement de dépense différent — un seuil global masquerait les écarts individuels",
+            "PARTITION BY est obligatoire pour utiliser AVG()",
+            "Cela n'a aucune importance pratique",
+          ],
+          correct_index: 0,
+          explain: "Un montant normal pour un gros client pourrait être une anomalie flagrante pour un petit client.",
+        },
+        {
+          question: "À quoi sert NULLIF(ecart_type, 0) dans un calcul de score-z ?",
+          options: [
+            "À arrondir le résultat",
+            "À éviter une division par zéro quand un client n'a qu'une seule transaction (écart-type = 0)",
+            "À trier les résultats",
+          ],
+          correct_index: 1,
+          explain: "Sans ce garde-fou, une division par un écart-type nul provoquerait une erreur d'exécution.",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.9",
+      slug: "lateral-join-as-of-join-taux-change",
+      title: "LATERAL JOIN et as-of join : le taux de change historique",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 30,
+      sort_order: 9,
+      body_content: {
+        blocks: [
           {
             type: "callout",
             title: "Le piège qui coûte cher en production",
-            text: "fx_rates contient un taux différent CHAQUE JOUR. Joindre naïvement une transaction au taux \"le plus récent\" plutôt qu'au taux en vigueur À SA DATE fausse silencieusement tout l'historique — une erreur réelle et fréquente en fintech.",
+            text: "fx_rates contient un taux différent CHAQUE JOUR. Joindre naïvement une transaction au taux \"le plus récent\" plutôt qu'au taux en vigueur À SA DATE fausse silencieusement tout l'historique de conversion — une erreur réelle et fréquente en fintech, invisible tant qu'on ne compare pas au bon référentiel.",
+          },
+          {
+            type: "p",
+            text: "Un as-of join répond à \"quelle était la valeur en vigueur à CETTE date précise ?\". Ni un JOIN classique (qui exigerait une correspondance exacte de date, rarissime) ni une simple sous-requête scalaire (qui ne peut référencer qu'UNE seule ligne externe à la fois) ne suffisent — il faut un LATERAL JOIN.",
           },
           {
             type: "sql_code",
@@ -2455,11 +2937,90 @@ async function main() {
             caption: "Alternative équivalente : DISTINCT ON (t.transaction_id) avec un ORDER BY rate_date desc.",
           },
           {
+            type: "callout",
+            title: "Pourquoi LATERAL, précisément",
+            text: "LATERAL autorise la sous-requête de droite à référencer une colonne de la ligne COURANTE de la table de gauche (ici, t.currency_code et t.transaction_at) — un JOIN ou une sous-requête classique ne le permet pas. C'est ce qui rend possible \"pour CETTE transaction précise, trouve le taux le plus récent avant SA date\", répété pour chaque ligne.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Sans LATERAL, cette référence à t.currency_code serait invalide dans une sous-requête classique\n-- select t.*, (select rate_to_usd from fx_rates where currency_code = t.currency_code ...) -- fonctionne en fait pour une sous-requête corrélée scalaire simple,\n-- mais LATERAL devient indispensable dès qu'on a besoin de plusieurs colonnes ou de LIMIT/ORDER BY comme ici.",
+          },
+          {
             type: "sql_sandbox",
-            prompt:
-              "Atelier — top marchands par pays (fait), détection de transactions inhabituelles (fait), puis convertis les 20 premières transactions du Kenya en USD via l'as-of join ci-dessus.",
+            prompt: "Convertis les 20 premières transactions du Kenya en USD via l'as-of join.",
             starterQuery:
               "select t.transaction_id, t.transaction_at, t.amount_local, t.currency_code,\n  fx.rate_to_usd, round(t.amount_local / fx.rate_to_usd, 2) as amount_usd\nfrom fact_transactions t\njoin lateral (\n  select rate_to_usd from fx_rates\n  where fx_rates.currency_code = t.currency_code and fx_rates.rate_date <= t.transaction_at::date\n  order by rate_date desc limit 1\n) fx on true\nwhere t.country_code = 'KE'\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi un as-of join est-il nécessaire pour convertir un montant en devise ?",
+          options: [
+            "Ce n'est jamais nécessaire",
+            "Le taux de change change chaque jour ; il faut le taux en vigueur à la date de la transaction",
+            "PostgreSQL l'exige par défaut",
+          ],
+          correct_index: 1,
+          explain: "Joindre au taux \"le plus récent\" plutôt qu'au taux historique fausse toutes les conversions passées.",
+        },
+        {
+          question: "Qu'est-ce qu'un LATERAL JOIN permet, que ni un JOIN classique ni une sous-requête simple ne permettent ?",
+          options: [
+            "Référencer une colonne de la ligne courante de la table de gauche à l'intérieur de la sous-requête de droite",
+            "Trier automatiquement le résultat final",
+            "Éviter d'utiliser ORDER BY",
+          ],
+          correct_index: 0,
+          explain: "C'est cette référence croisée qui rend possible \"le taux en vigueur à CETTE date précise, pour CETTE ligne\".",
+        },
+      ],
+    },
+
+    {
+      number: "2.4.10",
+      slug: "atelier-de-synthese-chapitre-2-4",
+      title: "Atelier de synthèse du chapitre",
+      parentSlug: "window-functions-sql-analytique",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Ce chapitre a couvert OVER()/PARTITION BY (2.4.1-2.4.2), les cadres de fenêtre (2.4.3), les fonctions de classement (2.4.4-2.4.5), les valeurs relatives et cumuls (2.4.6-2.4.7), la détection d'anomalies (2.4.8) et l'as-of join (2.4.9). Cet atelier combine plusieurs de ces techniques dans un seul livrable, proche de ce qu'un vrai tableau de bord AfriPay demanderait.",
+          },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.5 si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais expliquer la différence entre GROUP BY et une window function à quelqu'un qui débute",
+              "Je choisis correctement entre ROW_NUMBER, RANK et DENSE_RANK selon le traitement voulu des ex-æquo",
+              "Je sais écrire un cumul progressif (running total) avec sum() over (order by ...)",
+              "Je sais pourquoi une comparaison d'anomalie doit se faire par groupe (PARTITION BY), pas globalement",
+              "Je comprends pourquoi LATERAL est nécessaire pour un as-of join",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 1 — Top 3 des marchands par volume dans chaque pays (RANK ou ROW_NUMBER, ton choix).",
+            starterQuery:
+              "with classement as (\n  select m.merchant_name, t.country_code, sum(t.amount_local) as volume,\n    row_number() over (partition by t.country_code order by sum(t.amount_local) desc) as rang\n  from fact_transactions t\n  join dim_merchant m on m.merchant_id = t.merchant_id\n  group by m.merchant_name, t.country_code\n)\nselect * from classement where rang <= 3 order by country_code, rang;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 2 — Pour le pays 'CI', calcule le cumul mensuel du volume de transactions (running total).",
+            starterQuery:
+              "select date_trunc('month', transaction_at) as mois, sum(amount_local) as volume_mensuel,\n  sum(sum(amount_local)) over (order by date_trunc('month', transaction_at)) as cumul\nfrom fact_transactions\nwhere country_code = 'CI'\ngroup by 1\norder by 1;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 3 — Livrable final : les 20 premières transactions du Sénégal, converties en USD au bon taux historique via l'as-of join.",
+            starterQuery:
+              "select t.transaction_id, t.transaction_at, t.amount_local, t.currency_code,\n  fx.rate_to_usd, round(t.amount_local / fx.rate_to_usd, 2) as amount_usd\nfrom fact_transactions t\njoin lateral (\n  select rate_to_usd from fx_rates\n  where fx_rates.currency_code = t.currency_code and fx_rates.rate_date <= t.transaction_at::date\n  order by rate_date desc limit 1\n) fx on true\nwhere t.country_code = 'SN'\nlimit 20;",
           },
         ],
       },
@@ -2475,20 +3036,16 @@ async function main() {
           explain: "C'est la différence fondamentale — GROUP BY réduit le nombre de lignes, OVER() non.",
         },
         {
-          question: "Pourquoi un as-of join est-il nécessaire pour convertir un montant en devise ?",
-          options: [
-            "Ce n'est jamais nécessaire",
-            "Le taux de change change chaque jour ; il faut le taux en vigueur à la date de la transaction",
-            "PostgreSQL l'exige par défaut",
-          ],
-          correct_index: 1,
-          explain: "Joindre au taux \"le plus récent\" plutôt qu'au taux historique fausse toutes les conversions passées.",
-        },
-        {
           question: "Quelle fonction renvoie la valeur de la ligne PRÉCÉDENTE dans une fenêtre ordonnée ?",
           options: ["LEAD", "LAG", "RANK"],
           correct_index: 1,
           explain: "LAG regarde en arrière, LEAD regarde en avant.",
+        },
+        {
+          question: "Pour un running total (cumul progressif), quelle clause faut-il obligatoirement inclure dans OVER() ?",
+          options: ["PARTITION BY seul suffit", "ORDER BY, qui définit le cadre cumulatif par défaut", "NTILE"],
+          correct_index: 1,
+          explain: "Sans ORDER BY, la fenêtre entière serait agrégée d'un coup, sans notion de progression.",
         },
       ],
     },
