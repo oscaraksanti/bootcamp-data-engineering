@@ -3051,87 +3051,152 @@ async function main() {
     },
 
     // ============================================================
-    // 2.5 — SQL AVANCÉ
+    // CHAPITRE 2.5 — SQL AVANCÉ
     // ============================================================
     {
       number: "2.5",
       slug: "sql-avance-pour-data-engineers",
       title: "SQL avancé pour Data Engineers",
-      duration_minutes: 300,
+      duration_minutes: 15,
       sort_order: 5,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Cette leçon rassemble les compétences qui séparent \"je sais écrire des requêtes\" de \"je peux concevoir un système sur lequel d'autres s'appuient\".",
+            text: "Ce chapitre rassemble les compétences qui séparent \"je sais écrire des requêtes\" de \"je peux concevoir un système sur lequel d'autres s'appuient\" : contraintes, transactions, vues, récursivité, upsert et fuseaux horaires.",
           },
-          { type: "h3", text: "DDL/DML avancé et contraintes" },
           {
-            type: "sql_code",
-            text: "alter table dim_merchant add column is_active boolean not null default true;\n\n-- Contraintes : PK, FK, UNIQUE, CHECK — déjà partout dans le schéma AfriPay\n-- ex. dim_customer.segment a un CHECK, fact_transactions.customer_id une FK",
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
+            items: [
+              "2.5.1 — DDL avancé : ALTER TABLE et contraintes en détail",
+              "2.5.2 — Transactions et ACID",
+              "2.5.3 — Vues (CREATE VIEW) : abstraction et sécurité",
+              "2.5.4 — Vues matérialisées : figer un résultat coûteux",
+              "2.5.5 — CTE récursive : concept et syntaxe de base",
+              "2.5.6 — CTE récursive appliquée : la hiérarchie d'agents AfriPay",
+              "2.5.7 — CTAS et tables temporaires",
+              "2.5.8 — Construire du JSON en SQL : jsonb_build_object, jsonb_agg",
+              "2.5.9 — UPSERT : INSERT ... ON CONFLICT en profondeur",
+              "2.5.10 — Fuseaux horaires multi-pays et atelier de synthèse",
+            ],
           },
-          { type: "h3", text: "Transactions et ACID" },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.5.1",
+      slug: "ddl-avance-alter-table-contraintes",
+      title: "DDL avancé : ALTER TABLE et contraintes en détail",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 1,
+      body_content: {
+        blocks: [
           {
             type: "p",
-            text: "BEGIN ouvre une transaction, COMMIT la valide, ROLLBACK l'annule entièrement. Sur un pipeline qui insère 5000 lignes, une transaction garantit qu'une erreur à la ligne 4999 n'en laisse pas 4998 orphelines en base — ACID (Atomicité, Cohérence, Isolation, Durabilité) est ce qui rend ça possible.",
+            text: "Une contrainte n'est pas de la documentation — c'est une garantie appliquée par le moteur lui-même, à chaque insertion et mise à jour, sans exception possible.",
+          },
+          {
+            type: "table",
+            headers: ["Contrainte", "Garantit"],
+            rows: [
+              ["PRIMARY KEY", "Unicité + non-nullité — identifie une ligne de façon unique"],
+              ["FOREIGN KEY", "La valeur référencée existe réellement dans la table pointée"],
+              ["UNIQUE", "Aucune autre ligne n'a la même valeur (peut être NULL, contrairement à PK)"],
+              ["NOT NULL", "La colonne ne peut jamais être vide"],
+              ["CHECK", "Une condition arbitraire doit être vraie pour chaque ligne"],
+            ],
           },
           {
             type: "sql_code",
-            text: "begin;\nupdate dim_merchant set is_active = false where merchant_id = 12;\n-- si une erreur survient ici, rien n'est appliqué\ncommit;",
-          },
-          { type: "h3", text: "Vues et vues matérialisées" },
-          {
-            type: "sql_code",
-            text: "create view v_volume_par_pays as\nselect country_code, sum(amount_local) as volume, count(*) as nb_transactions\nfrom fact_transactions group by country_code;\n\n-- Une vue matérialisée fige le résultat — à rafraîchir explicitement\ncreate materialized view mv_volume_par_pays as select * from v_volume_par_pays;\nrefresh materialized view mv_volume_par_pays;",
+            text: "-- Contraintes déjà présentes dans le schéma AfriPay\n-- dim_agent.role a un CHECK : role in ('regional_manager','field_agent','sub_agent')\n-- fact_transactions.customer_id référence dim_customer(customer_id) — une FOREIGN KEY\n\n-- Ajouter une colonne avec une contrainte, sur une table existante\nalter table dim_merchant add column is_active boolean not null default true;\n\n-- Ajouter une contrainte CHECK après coup\nalter table dim_merchant add constraint chk_category\n  check (category in ('Alimentation', 'Transport', 'Santé', 'Éducation', 'Autre'));",
           },
           {
             type: "callout",
-            title: "Vue vs vue matérialisée",
-            text: "Une vue simple recalcule sa requête à chaque lecture — toujours à jour, mais potentiellement lente. Une vue matérialisée stocke le résultat — rapide à lire, mais périmée tant qu'on ne la rafraîchit pas. Le choix dépend de si la fraîcheur ou la vitesse compte le plus.",
-          },
-          { type: "h3", text: "CTE récursive : la hiérarchie d'agents AfriPay" },
-          {
-            type: "p",
-            text: "dim_agent modélise le réseau d'agents mobile money : des responsables régionaux, qui supervisent des agents de terrain, qui recrutent parfois des sous-agents. C'est une hiérarchie — exactement le cas d'usage d'une CTE récursive.",
+            title: "🪤 Ajouter NOT NULL sur une table qui contient déjà des données",
+            text: "`alter table ... add column x not null` échoue si la table contient déjà des lignes, sauf si un DEFAULT est fourni pour remplir rétroactivement les lignes existantes. C'est pour ça que la ligne ci-dessus fonctionne : `default true` donne une valeur à toutes les lignes déjà présentes au moment de l'ALTER.",
           },
           {
             type: "sql_code",
-            text: "-- Tous les agents sous le responsable régional de Côte d'Ivoire, avec leur profondeur\nwith recursive hierarchie as (\n  select agent_id, agent_name, manager_id, role, 1 as profondeur\n  from dim_agent\n  where role = 'regional_manager' and country_code = 'CI'\n\n  union all\n\n  select a.agent_id, a.agent_name, a.manager_id, a.role, h.profondeur + 1\n  from dim_agent a\n  join hierarchie h on a.manager_id = h.agent_id\n)\nselect * from hierarchie order by profondeur, agent_name;",
-          },
-          { type: "h3", text: "CTAS et tables temporaires" },
-          {
-            type: "sql_code",
-            text: "-- CREATE TABLE AS SELECT — matérialise un résultat en vraie table\ncreate table stg_volume_2024 as\nselect country_code, sum(amount_local) as volume\nfrom fact_transactions\nwhere extract(year from transaction_at) = 2024\ngroup by country_code;",
-          },
-          { type: "h3", text: "JSON/JSONB en profondeur" },
-          {
-            type: "sql_code",
-            text: "-- Filtrer directement sur un champ JSON, sans le sortir en colonne\nselect transaction_id, channel_metadata\nfrom fact_transactions\nwhere channel_metadata->>'operator' = 'Orange Money'\n  and channel_metadata->>'device_os' = 'android';",
-          },
-          { type: "h3", text: "Upsert — INSERT ... ON CONFLICT" },
-          {
-            type: "sql_code",
-            text: "-- Insère, ou met à jour si le taux du jour existe déjà (rejouable sans dupliquer)\ninsert into fx_rates (currency_code, rate_date, rate_to_usd)\nvalues ('XOF', current_date, 610.5)\non conflict (currency_code, rate_date)\ndo update set rate_to_usd = excluded.rate_to_usd;",
-          },
-          {
-            type: "thinking_prompt",
-            text: "Si je relance ce script d'insertion deux fois, est-ce que je duplique mes données ? Avec ON CONFLICT, non — la leçon 2.7 construit là-dessus pour rendre un pipeline entier idempotent.",
-          },
-          { type: "h3", text: "Fuseaux horaires multi-pays" },
-          {
-            type: "p",
-            text: "fact_transactions.transaction_at est un timestamptz — un instant absolu, indépendant du fuseau. Mais \"le jour de la transaction\" dépend d'où on se trouve : 23h50 à Nairobi (UTC+3) et 23h50 à Rabat (UTC+1) ne tombent pas le même jour en UTC.",
-          },
-          {
-            type: "sql_code",
-            text: "-- L'heure locale réelle de chaque transaction, selon le fuseau de son pays\nselect t.transaction_id, t.transaction_at,\n  t.transaction_at at time zone c.timezone as heure_locale\nfrom fact_transactions t\njoin dim_country c on c.country_code = t.country_code\nlimit 10;",
+            text: "-- Vérifier les contraintes existantes d'une table\nselect constraint_name, constraint_type\nfrom information_schema.table_constraints\nwhere table_name = 'fact_transactions';",
           },
           {
             type: "sql_sandbox",
-            prompt:
-              "Atelier — trouve les 3 sous-agents recrutés par l'agent de terrain le plus ancien du Kenya (utilise la CTE récursive ci-dessus en changeant le pays).",
+            prompt: "Liste toutes les contraintes existantes sur dim_customer.",
             starterQuery:
-              "with recursive hierarchie as (\n  select agent_id, agent_name, manager_id, role, 1 as profondeur\n  from dim_agent where role = 'regional_manager' and country_code = 'KE'\n  union all\n  select a.agent_id, a.agent_name, a.manager_id, a.role, h.profondeur + 1\n  from dim_agent a join hierarchie h on a.manager_id = h.agent_id\n)\nselect * from hierarchie order by profondeur, agent_name;",
+              "select constraint_name, constraint_type\nfrom information_schema.table_constraints\nwhere table_name = 'dim_customer';",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle est la différence entre UNIQUE et PRIMARY KEY ?",
+          options: [
+            "Aucune différence",
+            "UNIQUE peut accepter une valeur NULL, PRIMARY KEY jamais",
+            "PRIMARY KEY ne s'applique qu'aux entiers",
+          ],
+          correct_index: 1,
+          explain: "PRIMARY KEY combine unicité ET non-nullité — UNIQUE seul garantit uniquement l'unicité.",
+        },
+        {
+          question: "Pourquoi `alter table ... add column x not null` peut-il échouer sur une table déjà remplie ?",
+          options: [
+            "Ce n'est jamais possible d'ajouter une colonne à une table remplie",
+            "Sans DEFAULT, les lignes déjà existantes n'auraient aucune valeur pour cette nouvelle colonne obligatoire",
+            "PostgreSQL limite le nombre de colonnes",
+          ],
+          correct_index: 1,
+          explain: "Fournir un DEFAULT permet de remplir rétroactivement toutes les lignes existantes.",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.2",
+      slug: "transactions-et-acid",
+      title: "Transactions et ACID",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "BEGIN ouvre une transaction, COMMIT la valide définitivement, ROLLBACK l'annule entièrement, comme si rien ne s'était produit. Sur un pipeline qui insère 5000 lignes, une transaction garantit qu'une erreur à la ligne 4999 n'en laisse pas 4998 orphelines en base.",
+          },
+          {
+            type: "sql_code",
+            text: "begin;\nupdate dim_merchant set is_active = false where merchant_id = 12;\ninsert into fx_rates (currency_code, rate_date, rate_to_usd) values ('XOF', current_date, 610.5);\n-- si une erreur survient à cette ligne, RIEN de ce qui précède dans la transaction n'est appliqué\ncommit;",
+          },
+          { type: "h3", text: "ACID : les quatre garanties" },
+          {
+            type: "table",
+            headers: ["Garantie", "Signifie"],
+            rows: [
+              ["Atomicité", "Tout ou rien — une transaction ne s'applique jamais partiellement"],
+              ["Cohérence", "La base passe d'un état valide à un autre état valide (les contraintes restent respectées)"],
+              ["Isolation", "Une transaction en cours n'expose pas ses changements intermédiaires aux autres connexions"],
+              ["Durabilité", "Une fois COMMIT confirmé, les données survivent même à une panne serveur immédiate"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- ROLLBACK explicite : annuler volontairement une transaction en cours\nbegin;\ndelete from fact_transactions where country_code = 'XX'; -- test, pas encore sûr\nrollback; -- annule tout, comme si le DELETE n'avait jamais eu lieu",
+          },
+          {
+            type: "callout",
+            title: "SAVEPOINT — un point de reprise partiel dans une transaction",
+            text: "Une transaction longue peut définir des SAVEPOINT intermédiaires : `rollback to savepoint x` annule seulement ce qui suit ce point, sans annuler toute la transaction. Utile pour un batch qui traite plusieurs étapes indépendantes, où l'échec d'une étape ne doit pas obligatoirement annuler les précédentes.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Ouvre une transaction, modifie une donnée test, puis annule-la avec ROLLBACK — vérifie que rien n'a changé.",
+            starterQuery:
+              "begin;\nupdate dim_merchant set is_active = false where merchant_id = 1;\nselect merchant_id, is_active from dim_merchant where merchant_id = 1;\nrollback;",
           },
         ],
       },
@@ -3147,11 +3212,420 @@ async function main() {
           explain: "C'est l'atomicité : tout ou rien.",
         },
         {
+          question: "Que garantit la \"durabilité\" (le D de ACID) ?",
+          options: [
+            "Que la requête s'exécute plus vite",
+            "Qu'une fois COMMIT confirmé, les données survivent même à une panne serveur immédiate",
+            "Que la base ne peut jamais planter",
+          ],
+          correct_index: 1,
+          explain: "PostgreSQL écrit sur disque de façon durable avant de confirmer un COMMIT au client.",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.3",
+      slug: "vues-create-view-abstraction-securite",
+      title: "Vues (CREATE VIEW) : abstraction et sécurité",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 20,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une vue est une requête nommée et sauvegardée — chaque lecture réexécute la requête sous-jacente. Elle sert deux objectifs distincts : simplifier une requête complexe réutilisée souvent, et restreindre l'accès à des données sensibles.",
+          },
+          {
+            type: "sql_code",
+            text: "create view v_volume_par_pays as\nselect co.country_name, count(*) as nb_transactions, sum(t.amount_local) as volume\nfrom fact_transactions t\njoin dim_country co on co.country_code = t.country_code\ngroup by co.country_name;\n\n-- Interroger la vue comme une table normale\nselect * from v_volume_par_pays order by volume desc;",
+          },
+          {
+            type: "callout",
+            title: "Vues et sécurité : cacher des colonnes sensibles",
+            text: "Une vue peut exposer uniquement un sous-ensemble de colonnes d'une table — un rôle avec accès uniquement à la vue (et pas à la table sous-jacente) ne peut jamais voir les colonnes exclues. C'est une façon simple de partager des données agrégées ou filtrées sans exposer le détail sensible.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Une vue qui expose les clients sans leurs informations les plus sensibles\ncreate view v_clients_public as\nselect customer_id, country_code, segment, signup_date\nfrom dim_customer;\n-- full_name n'apparaît volontairement pas ici",
+          },
+          {
+            type: "p",
+            text: "CREATE OR REPLACE VIEW permet de modifier la définition d'une vue existante sans avoir à la supprimer d'abord — utile en migration progressive d'un schéma.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Crée une vue qui résume le nombre de marchands par pays et catégorie, puis interroge-la.",
+            starterQuery:
+              "create or replace view v_marchands_par_pays_categorie as\nselect country_code, category, count(*) as nb_marchands\nfrom dim_merchant\ngroup by country_code, category;\n\nselect * from v_marchands_par_pays_categorie order by nb_marchands desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Une vue simple (CREATE VIEW, pas matérialisée) stocke-t-elle physiquement le résultat de sa requête ?",
+          options: ["Oui, en permanence", "Non — elle réexécute la requête sous-jacente à chaque lecture", "Seulement le premier jour"],
+          correct_index: 1,
+          explain: "C'est ce qui la distingue d'une vue matérialisée (Leçon 2.5.4), qui elle stocke le résultat.",
+        },
+        {
+          question: "Comment une vue peut-elle servir la sécurité des données ?",
+          options: [
+            "En chiffrant automatiquement les données",
+            "En exposant uniquement certaines colonnes, cachant les colonnes sensibles à qui n'a accès qu'à la vue",
+            "Une vue n'a aucun rapport avec la sécurité",
+          ],
+          correct_index: 1,
+          explain: "Un rôle limité à la vue ne peut jamais accéder aux colonnes exclues de sa définition.",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.4",
+      slug: "vues-materialisees-figer-resultat",
+      title: "Vues matérialisées : figer un résultat coûteux",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 20,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une vue matérialisée exécute sa requête UNE FOIS et stocke physiquement le résultat sur disque — les lectures suivantes sont ensuite instantanées, jusqu'au prochain rafraîchissement explicite.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Une vue matérialisée fige le résultat — à rafraîchir explicitement\ncreate materialized view mv_volume_par_pays as\nselect co.country_name, count(*) as nb_transactions, sum(t.amount_local) as volume\nfrom fact_transactions t\njoin dim_country co on co.country_code = t.country_code\ngroup by co.country_name;\n\n-- Lecture instantanée, sans recalcul\nselect * from mv_volume_par_pays order by volume desc;\n\n-- Rafraîchir après que de nouvelles transactions soient arrivées\nrefresh materialized view mv_volume_par_pays;",
+          },
+          {
+            type: "callout",
+            title: "Vue vs vue matérialisée — le bon choix dépend d'un seul arbitrage",
+            text: "Une vue simple recalcule sa requête à chaque lecture — toujours à jour (fraîcheur maximale), mais potentiellement lente sur une requête coûteuse. Une vue matérialisée stocke le résultat — rapide à lire, mais périmée tant qu'on ne la rafraîchit pas explicitement. Le choix dépend uniquement de si la fraîcheur ou la vitesse de lecture compte le plus pour ce cas d'usage précis.",
+          },
+          {
+            type: "sql_code",
+            text: "-- REFRESH ... CONCURRENTLY : rafraîchit sans bloquer les lectures en cours (nécessite un index UNIQUE sur la vue)\ncreate unique index on mv_volume_par_pays (country_name);\nrefresh materialized view concurrently mv_volume_par_pays;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Un tableau de bord consulté 10 000 fois par jour, dont la donnée sous-jacente ne change qu'une fois par nuit, est le cas d'usage idéal d'une vue matérialisée rafraîchie une fois par jour — inutile de recalculer la même requête coûteuse à chaque clic.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Crée une vue matérialisée du volume total par marchand, puis interroge-la.",
+            starterQuery:
+              "create materialized view if not exists mv_volume_marchand as\nselect merchant_id, sum(amount_local) as volume, count(*) as nb_transactions\nfrom fact_transactions\ngroup by merchant_id;\n\nselect * from mv_volume_marchand order by volume desc limit 10;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Qu'est-ce qui distingue une vue matérialisée d'une vue simple ?",
+          options: [
+            "Elle stocke physiquement le résultat, qui reste figé jusqu'au prochain REFRESH",
+            "Elle ne peut contenir aucune jointure",
+            "Elle se rafraîchit automatiquement à chaque écriture",
+          ],
+          correct_index: 0,
+          explain: "C'est ce compromis fraîcheur/vitesse qui détermine le bon choix entre les deux.",
+        },
+        {
+          question: "Que faut-il pour utiliser REFRESH MATERIALIZED VIEW CONCURRENTLY sans bloquer les lectures ?",
+          options: ["Rien de particulier", "Un index UNIQUE sur la vue matérialisée", "Que la vue soit vide"],
+          correct_index: 1,
+          explain: "CONCURRENTLY a besoin d'un index unique pour comparer ancien et nouveau contenu ligne par ligne.",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.5",
+      slug: "cte-recursive-concept-syntaxe",
+      title: "CTE récursive : concept et syntaxe de base",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 30,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une CTE récursive (WITH RECURSIVE) se référence elle-même — le seul mécanisme SQL natif pour parcourir une profondeur inconnue à l'avance : une hiérarchie, un arbre, un graphe de dépendances.",
+          },
+          {
+            type: "table",
+            headers: ["Partie", "Rôle"],
+            rows: [
+              ["Terme d'ancrage (avant UNION ALL)", "Le point de départ — s'exécute une seule fois"],
+              ["UNION ALL", "Combine chaque nouvelle \"couche\" trouvée avec les précédentes"],
+              ["Terme récursif (après UNION ALL)", "Se référence lui-même — répété jusqu'à ce qu'aucune nouvelle ligne n'apparaisse"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Exemple minimal, sans lien avec AfriPay : compter de 1 à 5\nwith recursive compteur as (\n  select 1 as n              -- terme d'ancrage : le point de départ\n  union all\n  select n + 1 from compteur where n < 5   -- terme récursif : se référence lui-même\n)\nselect * from compteur;",
+          },
+          {
+            type: "callout",
+            title: "Comment la récursion s'arrête",
+            text: "PostgreSQL répète le terme récursif jusqu'à ce qu'une itération ne produise PLUS AUCUNE nouvelle ligne. Dans l'exemple ci-dessus, la condition `where n < 5` finit par n'avoir aucune ligne qui la satisfait — la récursion s'arrête d'elle-même. Sans condition d'arrêt correcte, une CTE récursive peut boucler indéfiniment (PostgreSQL a une limite de sécurité, mais mieux vaut ne jamais compter dessus).",
+          },
+          {
+            type: "sql_code",
+            text: "-- ⚠ Dangereux : aucune condition d'arrêt naturelle — évite ce pattern\n-- with recursive infini as (\n--   select 1 as n union all select n + 1 from infini\n-- ) select * from infini;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Génère la table de multiplication de 7, de 7×1 à 7×10, avec une CTE récursive.",
+            starterQuery:
+              "with recursive table_7 as (\n  select 1 as multiplicateur, 7 as resultat\n  union all\n  select multiplicateur + 1, (multiplicateur + 1) * 7\n  from table_7\n  where multiplicateur < 10\n)\nselect * from table_7;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel type de structure de données une CTE récursive est-elle spécifiquement conçue pour parcourir ?",
+          options: [
+            "Une simple liste plate de valeurs",
+            "Une profondeur inconnue à l'avance — hiérarchie, arbre, graphe de dépendances",
+            "Uniquement des dates",
+          ],
+          correct_index: 1,
+          explain: "C'est le seul mécanisme SQL natif capable de parcourir un nombre de niveaux non fixé d'avance.",
+        },
+        {
+          question: "Comment une CTE récursive s'arrête-t-elle normalement ?",
+          options: [
+            "Après exactement 10 itérations toujours",
+            "Quand une itération du terme récursif ne produit plus aucune nouvelle ligne",
+            "Elle ne s'arrête jamais automatiquement",
+          ],
+          correct_index: 1,
+          explain: "D'où l'importance d'une condition d'arrêt correcte dans le terme récursif (ex. WHERE n < 5).",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.6",
+      slug: "cte-recursive-hierarchie-agents-afripay",
+      title: "CTE récursive appliquée : la hiérarchie d'agents AfriPay",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 30,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "dim_agent modélise le réseau d'agents mobile money : des responsables régionaux, qui supervisent des agents de terrain, qui recrutent parfois des sous-agents. C'est une hiérarchie à profondeur variable — exactement le cas d'usage réel d'une CTE récursive, là où le SELF JOIN du Chapitre 2.3 ne remontait qu'un seul niveau.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Tous les agents sous le responsable régional de Côte d'Ivoire, avec leur profondeur dans la hiérarchie\nwith recursive hierarchie as (\n  select agent_id, agent_name, manager_id, role, 1 as profondeur\n  from dim_agent\n  where role = 'regional_manager' and country_code = 'CI'\n\n  union all\n\n  select a.agent_id, a.agent_name, a.manager_id, a.role, h.profondeur + 1\n  from dim_agent a\n  join hierarchie h on a.manager_id = h.agent_id\n)\nselect * from hierarchie order by profondeur, agent_name;",
+          },
+          {
+            type: "callout",
+            title: "Comment lire cette requête pas à pas",
+            text: "Le terme d'ancrage sélectionne le sommet (le responsable régional) avec profondeur = 1. Le terme récursif rejoint dim_agent à la CTE elle-même (hierarchie h) sur `a.manager_id = h.agent_id` : à chaque itération, il trouve les agents dont le manager vient d'être ajouté à la couche précédente, et incrémente la profondeur. La récursion s'arrête quand plus aucun agent n'a un manager dans la dernière couche trouvée.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Variante utile : le chemin complet depuis la racine, construit au fil de la récursion\nwith recursive hierarchie as (\n  select agent_id, agent_name, manager_id, 1 as profondeur, agent_name::text as chemin\n  from dim_agent\n  where role = 'regional_manager' and country_code = 'KE'\n\n  union all\n\n  select a.agent_id, a.agent_name, a.manager_id, h.profondeur + 1,\n    h.chemin || ' > ' || a.agent_name\n  from dim_agent a\n  join hierarchie h on a.manager_id = h.agent_id\n)\nselect agent_name, profondeur, chemin from hierarchie order by profondeur, agent_name;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Trouve tous les agents sous le responsable régional du Kenya, avec leur profondeur.",
+            starterQuery:
+              "with recursive hierarchie as (\n  select agent_id, agent_name, manager_id, role, 1 as profondeur\n  from dim_agent where role = 'regional_manager' and country_code = 'KE'\n  union all\n  select a.agent_id, a.agent_name, a.manager_id, a.role, h.profondeur + 1\n  from dim_agent a join hierarchie h on a.manager_id = h.agent_id\n)\nselect * from hierarchie order by profondeur, agent_name;",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "Une CTE récursive est adaptée pour modéliser :",
           options: ["Une liste plate de clients", "Une hiérarchie (managers, sous-agents...)", "Un taux de change"],
           correct_index: 1,
           explain: "C'est exactement le cas de dim_agent : manager_id qui référence agent_id de la même table.",
         },
+        {
+          question: "Pourquoi une CTE récursive est-elle nécessaire ici plutôt qu'un simple SELF JOIN (Chapitre 2.3) ?",
+          options: [
+            "Le SELF JOIN ne remonte qu'un seul niveau ; la hiérarchie AfriPay a une profondeur variable",
+            "Le SELF JOIN n'existe pas en PostgreSQL",
+            "Aucune raison, les deux sont strictement équivalents",
+          ],
+          correct_index: 0,
+          explain: "Un self join simple ne peut pas parcourir un nombre inconnu de niveaux hiérarchiques.",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.7",
+      slug: "ctas-tables-temporaires",
+      title: "CTAS et tables temporaires",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 20,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "CREATE TABLE AS SELECT (CTAS) matérialise un résultat de requête en une VRAIE table, indépendante — contrairement à une vue, elle ne se recalcule jamais toute seule et peut être indexée, modifiée, ou droppée comme n'importe quelle table.",
+          },
+          {
+            type: "sql_code",
+            text: "-- CTAS — matérialise un résultat en vraie table, figée à cet instant\ncreate table stg_volume_2024 as\nselect country_code, sum(amount_local) as volume\nfrom fact_transactions\nwhere extract(year from transaction_at) = 2024\ngroup by country_code;\n\nselect * from stg_volume_2024;",
+          },
+          {
+            type: "callout",
+            title: "CTAS vs vue matérialisée : quand utiliser laquelle",
+            text: "Les deux figent un résultat, mais une vue matérialisée reste liée conceptuellement à sa requête d'origine (REFRESH la recalcule), alors qu'une table issue de CTAS est complètement indépendante — c'est un instantané ponctuel, souvent utilisé pour une étape intermédiaire d'un pipeline (staging), pas pour un tableau de bord qu'on rafraîchit régulièrement.",
+          },
+          { type: "h3", text: "Tables temporaires" },
+          {
+            type: "sql_code",
+            text: "-- TEMP TABLE : existe seulement pour la durée de la session, disparaît automatiquement ensuite\ncreate temp table calcul_intermediaire as\nselect customer_id, sum(amount_local) as total\nfrom fact_transactions\ngroup by customer_id;\n\n-- Utilisable normalement pendant la session\nselect * from calcul_intermediaire where total > 500;",
+          },
+          {
+            type: "p",
+            text: "Une table temporaire est utile pour un calcul intermédiaire complexe qu'on veut réutiliser plusieurs fois dans un script, sans polluer le schéma permanent de la base — elle se nettoie automatiquement à la fin de la session.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Crée une table temporaire des marchands actifs, puis interroge-la.",
+            starterQuery:
+              "create temp table if not exists tmp_marchands_actifs as\nselect merchant_id, merchant_name, category\nfrom dim_merchant;\n\nselect category, count(*) from tmp_marchands_actifs group by category;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que produit CREATE TABLE AS SELECT (CTAS), contrairement à une vue ?",
+          options: [
+            "Une vraie table indépendante, figée à l'instant de la création",
+            "Une requête recalculée à chaque lecture",
+            "Rien de différent d'une vue simple",
+          ],
+          correct_index: 0,
+          explain: "Une table CTAS ne se recalcule jamais toute seule — c'est un instantané ponctuel.",
+        },
+        {
+          question: "Quand une table temporaire (TEMP TABLE) disparaît-elle ?",
+          options: ["Jamais automatiquement", "À la fin de la session courante", "Après exactement 24 heures"],
+          correct_index: 1,
+          explain: "Elle est automatiquement nettoyée en fin de session — utile pour du calcul intermédiaire sans polluer le schéma permanent.",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.8",
+      slug: "construire-json-jsonb-build-agg",
+      title: "Construire du JSON en SQL : jsonb_build_object, jsonb_agg",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Le Chapitre 2.2 a couvert l'EXTRACTION de JSON existant (->>, ->). Ici, l'opération inverse : CONSTRUIRE du JSON à partir de colonnes SQL classiques — utile pour préparer une réponse d'API ou exporter un document structuré depuis une table relationnelle.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Construire un objet JSON à partir de colonnes\nselect jsonb_build_object(\n  'transaction_id', transaction_id,\n  'montant', amount_local,\n  'devise', currency_code,\n  'canal', channel\n) as transaction_json\nfrom fact_transactions\nlimit 5;",
+          },
+          {
+            type: "sql_code",
+            text: "-- jsonb_agg : regrouper plusieurs lignes en un seul tableau JSON\nselect m.merchant_name,\n  jsonb_agg(jsonb_build_object('transaction_id', t.transaction_id, 'montant', t.amount_local)) as transactions\nfrom dim_merchant m\njoin fact_transactions t on t.merchant_id = m.merchant_id\ngroup by m.merchant_name\nlimit 5;",
+          },
+          {
+            type: "callout",
+            title: "Cas d'usage réel : préparer une réponse d'API directement en SQL",
+            text: "Une route API qui doit renvoyer \"chaque marchand avec la liste de ses transactions\" peut construire ce JSON directement en base avec jsonb_agg, plutôt que de récupérer des lignes plates et les réassembler ensuite côté application — moins de code, et souvent plus rapide qu'un assemblage manuel en dehors de la base.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Combiner build_object et agg : un objet complet par groupe\nselect co.country_name,\n  jsonb_build_object(\n    'nb_transactions', count(*),\n    'volume_total', sum(t.amount_local)\n  ) as resume\nfrom fact_transactions t\njoin dim_country co on co.country_code = t.country_code\ngroup by co.country_name;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Construis un objet JSON récapitulatif (nb transactions, volume) par canal de paiement.",
+            starterQuery:
+              "select channel, jsonb_build_object('nb', count(*), 'volume', sum(amount_local)) as resume\nfrom fact_transactions\ngroup by channel;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que fait jsonb_build_object('a', valeur_a, 'b', valeur_b) ?",
+          options: [
+            "Il extrait un champ JSON existant",
+            "Il construit un nouvel objet JSON à partir de colonnes ou valeurs SQL",
+            "Il valide un schéma JSON",
+          ],
+          correct_index: 1,
+          explain: "C'est l'opération inverse de ->/->> : construire du JSON plutôt que l'extraire.",
+        },
+        {
+          question: "Quel est l'intérêt de jsonb_agg combiné à un GROUP BY ?",
+          options: [
+            "Il trie les résultats",
+            "Il regroupe plusieurs lignes d'un même groupe en un seul tableau JSON",
+            "Il supprime les doublons automatiquement",
+          ],
+          correct_index: 1,
+          explain: "Utile pour préparer une structure imbriquée (ex. un marchand avec la liste de ses transactions) directement en SQL.",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.9",
+      slug: "upsert-insert-on-conflict-approfondi",
+      title: "UPSERT : INSERT ... ON CONFLICT en profondeur",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un upsert (\"update\" + \"insert\") insère une ligne, ou la met à jour si elle existe déjà selon une clé donnée — sans jamais avoir besoin de vérifier manuellement au préalable si la ligne existe.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Insère, ou met à jour si le taux du jour existe déjà (rejouable sans dupliquer)\ninsert into fx_rates (currency_code, rate_date, rate_to_usd)\nvalues ('XOF', current_date, 610.5)\non conflict (currency_code, rate_date)\ndo update set rate_to_usd = excluded.rate_to_usd;",
+          },
+          {
+            type: "callout",
+            title: "Le mot-clé EXCLUDED",
+            text: "Dans la clause DO UPDATE, `excluded` fait référence à la ligne qu'on essayait d'insérer (celle qui a causé le conflit) — pas à la ligne déjà en base. `set rate_to_usd = excluded.rate_to_usd` signifie donc \"remplace l'ancienne valeur par la nouvelle qu'on vient de proposer\".",
+          },
+          {
+            type: "sql_code",
+            text: "-- ON CONFLICT DO NOTHING : ignorer silencieusement les doublons, sans mise à jour\ninsert into fx_rates (currency_code, rate_date, rate_to_usd)\nvalues ('KES', current_date, 129.4)\non conflict (currency_code, rate_date) do nothing;",
+          },
+          {
+            type: "p",
+            text: "ON CONFLICT nécessite une contrainte UNIQUE ou PRIMARY KEY existante sur les colonnes indiquées — c'est cette contrainte qui définit ce qu'est \"un conflit\". Sans elle, PostgreSQL refuse la clause ON CONFLICT.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ON CONFLICT peut aussi mettre à jour plusieurs colonnes, et référencer l'ancienne valeur\ninsert into dim_merchant (merchant_id, merchant_name, category, country_code, onboarded_date)\nvalues (1, 'Marché Central', 'Alimentation', 'CI', '2023-01-01')\non conflict (merchant_id) do update\n  set merchant_name = excluded.merchant_name,\n      category = excluded.category;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Simule un upsert : insère un taux de change pour aujourd'hui, en mettant à jour s'il existe déjà.",
+            starterQuery:
+              "insert into fx_rates (currency_code, rate_date, rate_to_usd)\nvalues ('MAD', current_date, 10.1)\non conflict (currency_code, rate_date)\ndo update set rate_to_usd = excluded.rate_to_usd\nreturning *;",
+          },
+        ],
+      },
+      quiz: [
         {
           question: "INSERT ... ON CONFLICT DO UPDATE sert principalement à :",
           options: [
@@ -3163,6 +3637,77 @@ async function main() {
           explain: "C'est le mécanisme SQL de l'upsert — la base d'un chargement idempotent.",
         },
         {
+          question: "Dans `on conflict (...) do update set col = excluded.col`, que représente `excluded` ?",
+          options: [
+            "La ligne déjà présente en base avant le conflit",
+            "La nouvelle ligne qu'on essayait d'insérer, à l'origine du conflit",
+            "Une table système vide",
+          ],
+          correct_index: 1,
+          explain: "excluded contient les valeurs proposées par l'INSERT qui a déclenché le conflit.",
+        },
+        {
+          question: "Que faut-il obligatoirement pour utiliser ON CONFLICT (colonne) ?",
+          options: [
+            "Rien de particulier",
+            "Une contrainte UNIQUE ou PRIMARY KEY existante sur cette colonne",
+            "Que la table soit vide",
+          ],
+          correct_index: 1,
+          explain: "C'est cette contrainte qui définit précisément ce que le moteur considère comme \"un conflit\".",
+        },
+      ],
+    },
+
+    {
+      number: "2.5.10",
+      slug: "fuseaux-horaires-multi-pays-atelier-synthese",
+      title: "Fuseaux horaires multi-pays et atelier de synthèse",
+      parentSlug: "sql-avance-pour-data-engineers",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "fact_transactions.transaction_at est un timestamptz — un instant absolu, indépendant du fuseau. Mais \"le jour de la transaction\" dépend d'où l'on se trouve : 23h50 à Nairobi (UTC+3) et 23h50 à Rabat (UTC+1) ne tombent pas nécessairement le même jour une fois converti en UTC.",
+          },
+          {
+            type: "sql_code",
+            text: "-- L'heure locale réelle de chaque transaction, selon le fuseau de son pays\nselect t.transaction_id, t.transaction_at,\n  t.transaction_at at time zone c.timezone as heure_locale,\n  (t.transaction_at at time zone c.timezone)::date as jour_local\nfrom fact_transactions t\njoin dim_country c on c.country_code = t.country_code\nlimit 10;",
+          },
+          {
+            type: "callout",
+            title: "🪤 Pourquoi \"le jour de la transaction\" est ambigu sans préciser le fuseau",
+            text: "Une transaction à 23h50 heure de Nairobi (UTC+3) correspond à 20h50 en UTC — encore le même jour calendaire en UTC. Mais une transaction à 23h50 heure du Cap-Vert (UTC-1, hypothétique) correspondrait déjà au lendemain en UTC. Sur un système multi-pays, agréger \"par jour\" sans convertir dans le bon fuseau local peut regrouper incorrectement des transactions dans la mauvaise journée business.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Agrégation quotidienne CORRECTE : le jour est calculé dans le fuseau LOCAL du pays, pas en UTC\nselect co.country_name,\n  (t.transaction_at at time zone co.timezone)::date as jour_local,\n  sum(t.amount_local) as volume\nfrom fact_transactions t\njoin dim_country co on co.country_code = t.country_code\ngroup by co.country_name, jour_local\norder by co.country_name, jour_local;",
+          },
+          { type: "h3", text: "Atelier de synthèse — tout le chapitre en une session" },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.6 si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais ajouter une contrainte CHECK ou NOT NULL sur une table existante, avec un DEFAULT si besoin",
+              "Je sais quand utiliser une transaction explicite (BEGIN/COMMIT/ROLLBACK)",
+              "Je sais choisir entre vue, vue matérialisée, et table CTAS selon fraîcheur vs vitesse",
+              "Je sais écrire une CTE récursive pour une hiérarchie à profondeur variable",
+              "Je sais rendre un script d'insertion idempotent avec ON CONFLICT",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Livrable — calcule le volume quotidien de transactions pour le Kenya, en agrégeant par jour LOCAL (pas UTC).",
+            starterQuery:
+              "select (t.transaction_at at time zone co.timezone)::date as jour_local,\n  count(*) as nb_transactions, sum(t.amount_local) as volume\nfrom fact_transactions t\njoin dim_country co on co.country_code = t.country_code\nwhere co.country_code = 'KE'\ngroup by jour_local\norder by jour_local;",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "Que fait `transaction_at at time zone c.timezone` ?",
           options: [
             "Rien, c'est une erreur de syntaxe",
@@ -3171,6 +3716,16 @@ async function main() {
           ],
           correct_index: 1,
           explain: "AT TIME ZONE convertit un timestamptz en l'heure murale locale de la zone indiquée.",
+        },
+        {
+          question: "Pourquoi agréger \"par jour\" en UTC peut-il être incorrect sur un système multi-pays ?",
+          options: [
+            "Ce n'est jamais incorrect",
+            "Le jour calendaire local peut différer du jour en UTC selon le fuseau, décalant certaines transactions vers le mauvais jour business",
+            "UTC n'existe pas dans PostgreSQL",
+          ],
+          correct_index: 1,
+          explain: "Il faut convertir dans le fuseau LOCAL du pays avant de tronquer en jour, pas agréger directement sur l'instant UTC.",
         },
       ],
     },
