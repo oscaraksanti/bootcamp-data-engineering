@@ -76,6 +76,7 @@ export async function deleteModule(moduleId: string) {
 export async function saveLesson(
   moduleId: string,
   lessonId: string | null,
+  parentLessonId: string | null,
   formData: FormData
 ) {
   const supabase = await requireAdmin();
@@ -83,6 +84,7 @@ export async function saveLesson(
   const title = String(formData.get("title") ?? "").trim();
   const payload = {
     module_id: moduleId,
+    parent_lesson_id: parentLessonId,
     title,
     slug: slugify(String(formData.get("slug") ?? title)),
     number: String(formData.get("number") ?? ""),

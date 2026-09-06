@@ -5,6 +5,7 @@ import { LessonBody } from "@/components/lesson/LessonBody";
 import { Quiz } from "@/components/quiz/Quiz";
 import { markLessonComplete, addNote } from "@/lib/actions/lesson";
 import { getAccessSummary, moduleIsUnlocked } from "@/lib/entitlements";
+import { buildLessonTree, flattenLeaves, type LessonNode } from "@/lib/lesson-tree";
 import type { LessonBodyContent } from "@/lib/lesson-blocks";
 
 export default async function LessonPage({
@@ -31,18 +32,21 @@ export default async function LessonPage({
     redirect("/app");
   }
 
-  const { data: lessons } = await supabase
+  const { data: allLessons } = await supabase
     .from("lessons")
-    .select("id, slug, title, number, sort_order")
+    .select("id, slug, title, number, sort_order, parent_lesson_id, status")
     .eq("module_id", courseModule.id)
     .eq("status", "published")
     .order("sort_order");
-  if (!lessons || lessons.length === 0) notFound();
+  if (!allLessons || allLessons.length === 0) notFound();
 
-  const currentIndex = lessons.findIndex((l) => l.slug === lessonSlug);
+  const tree = buildLessonTree(allLessons);
+  const leaves = flattenLeaves(tree);
+
+  const currentIndex = leaves.findIndex((l) => l.slug === lessonSlug);
   if (currentIndex === -1) notFound();
-  const lesson = lessons[currentIndex];
-  const isLastLesson = currentIndex === lessons.length - 1;
+  const lesson = leaves[currentIndex];
+  const isLastLesson = currentIndex === leaves.length - 1;
 
   const { data: fullLesson } = await supabase
     .from("lessons")
@@ -77,17 +81,17 @@ export default async function LessonPage({
     .eq("lesson_id", lesson.id)
     .order("created_at", { ascending: false });
 
-  const prevLesson = lessons[currentIndex - 1];
-  const nextLesson = lessons[currentIndex + 1];
+  const prevLesson = leaves[currentIndex - 1];
+  const nextLesson = leaves[currentIndex + 1];
   const basePath = `/app/modules/${moduleSlug}/lessons`;
   const nextHref = nextLesson ? `${basePath}/${nextLesson.slug}` : "/app";
   const currentPath = `${basePath}/${lessonSlug}`;
 
   const content = (fullLesson?.body_content ?? { blocks: [] }) as unknown as LessonBodyContent;
-  const completedCount = lessons.filter((l) => completedIds.has(l.id)).length;
+  const completedCount = leaves.filter((l) => completedIds.has(l.id)).length;
 
   return (
-    <div className="grid lg:grid-cols-[260px_1fr_280px] flex-1">
+    <div className="grid lg:grid-cols-[280px_1fr_280px] flex-1">
       {/* Sidebar */}
       <aside className="hidden lg:block border-r border-line bg-surface px-4 py-4.5 overflow-y-auto">
         <div className="font-mono text-[10.5px] uppercase tracking-wide text-ink-faint mb-1">
@@ -95,43 +99,26 @@ export default async function LessonPage({
         </div>
         <div className="font-semibold text-sm text-ink mb-2.5">{courseModule.title}</div>
         <div className="flex justify-between font-mono text-[11px] text-ink-faint mb-1.5">
-          <span>{completedCount}/{lessons.length} leçons</span>
-          <span>{Math.round((completedCount / lessons.length) * 100)}%</span>
+          <span>{completedCount}/{leaves.length} leçons</span>
+          <span>{Math.round((completedCount / leaves.length) * 100)}%</span>
         </div>
         <div className="h-1.5 rounded-full bg-line overflow-hidden mb-4">
           <div
             className="h-full bg-accent rounded-full"
-            style={{ width: `${Math.round((completedCount / lessons.length) * 100)}%` }}
+            style={{ width: `${Math.round((completedCount / leaves.length) * 100)}%` }}
           />
         </div>
 
         <div className="flex flex-col gap-0.5">
-          {lessons.map((l) => {
-            const done = completedIds.has(l.id);
-            const isCurrent = l.id === lesson.id;
-            return (
-              <Link
-                key={l.id}
-                href={`${basePath}/${l.slug}`}
-                className={`flex items-center gap-2 text-[12.5px] rounded-md px-2.5 py-2 ${
-                  isCurrent ? "bg-accent-soft text-accent-ink font-semibold" : "text-ink-soft hover:bg-surface-2"
-                }`}
-              >
-                <span
-                  className={`w-4 h-4 rounded-full flex-none flex items-center justify-center ${
-                    done ? "bg-success" : isCurrent ? "border-2 border-accent" : "bg-line"
-                  }`}
-                >
-                  {done && (
-                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-                      <path d="M1.5 5l2.5 2.5L8.5 2" stroke="#fff" strokeWidth="1.4" />
-                    </svg>
-                  )}
-                </span>
-                {l.number} — {l.title}
-              </Link>
-            );
-          })}
+          {tree.map((node) => (
+            <LessonTreeItem
+              key={node.id}
+              node={node}
+              basePath={basePath}
+              currentId={lesson.id}
+              completedIds={completedIds}
+            />
+          ))}
         </div>
       </aside>
 
@@ -225,5 +212,72 @@ export default async function LessonPage({
         </div>
       </aside>
     </div>
+  );
+}
+
+function LessonTreeItem({
+  node,
+  basePath,
+  currentId,
+  completedIds,
+}: {
+  node: LessonNode;
+  basePath: string;
+  currentId: string;
+  completedIds: Set<string>;
+}) {
+  // Feuille (pas d'enfants) — rendu identique à une leçon "à plat" d'avant.
+  if (node.children.length === 0) {
+    const done = completedIds.has(node.id);
+    const isCurrent = node.id === currentId;
+    return (
+      <Link
+        href={`${basePath}/${node.slug}`}
+        className={`flex items-center gap-2 text-[12.5px] rounded-md px-2.5 py-2 ${
+          isCurrent ? "bg-accent-soft text-accent-ink font-semibold" : "text-ink-soft hover:bg-surface-2"
+        }`}
+      >
+        <span
+          className={`w-4 h-4 rounded-full flex-none flex items-center justify-center ${
+            done ? "bg-success" : isCurrent ? "border-2 border-accent" : "bg-line"
+          }`}
+        >
+          {done && (
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+              <path d="M1.5 5l2.5 2.5L8.5 2" stroke="#fff" strokeWidth="1.4" />
+            </svg>
+          )}
+        </span>
+        {node.number} — {node.title}
+      </Link>
+    );
+  }
+
+  // Chapitre — en-tête repliable, ses feuilles gardent la coche individuelle.
+  const chapterDone = node.children.filter((c) => completedIds.has(c.id)).length;
+  const containsCurrent = node.children.some((c) => c.id === currentId);
+
+  return (
+    <details className="mt-1 first:mt-0" open={containsCurrent}>
+      <summary className="flex items-center justify-between gap-2 text-[12.5px] font-semibold text-ink rounded-md px-2.5 py-2 cursor-pointer hover:bg-surface-2 list-none [&::-webkit-details-marker]:hidden">
+        <span>
+          {node.number} — {node.title}
+        </span>
+        <span className="font-mono text-[10px] text-ink-faint font-normal">
+          {chapterDone}/{node.children.length}
+        </span>
+      </summary>
+      <div className="flex flex-col gap-0.5 pl-3 mt-0.5">
+        {node.children.map((child) => (
+          <LessonTreeItem
+            key={child.id}
+            node={child}
+            basePath={basePath}
+            currentId={currentId}
+            completedIds={completedIds}
+          />
+        ))}
+      </div>
+    </details>
   );
 }

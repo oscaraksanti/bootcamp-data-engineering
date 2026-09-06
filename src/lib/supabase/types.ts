@@ -75,6 +75,7 @@ export interface Database {
           number: string;
           slug: string;
           title: string;
+          parent_lesson_id: string | null;
           body_content: Record<string, unknown>;
           body_html: string | null;
           video_id: string | null;

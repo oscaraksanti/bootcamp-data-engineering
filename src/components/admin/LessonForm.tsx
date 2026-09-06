@@ -4,9 +4,22 @@ import type { Database } from "@/lib/supabase/types";
 
 type LessonRow = Database["public"]["Tables"]["lessons"]["Row"];
 
-export function LessonForm({ moduleId, lesson }: { moduleId: string; lesson?: LessonRow }) {
+export function LessonForm({
+  moduleId,
+  lesson,
+  parentLessonId = null,
+}: {
+  moduleId: string;
+  lesson?: LessonRow;
+  parentLessonId?: string | null;
+}) {
+  const effectiveParentId = lesson ? (lesson.parent_lesson_id ?? null) : parentLessonId;
+
   return (
-    <form action={saveLesson.bind(null, moduleId, lesson?.id ?? null)} className="flex flex-col gap-4">
+    <form
+      action={saveLesson.bind(null, moduleId, lesson?.id ?? null, effectiveParentId)}
+      className="flex flex-col gap-4"
+    >
       <div>
         <label className="block text-xs font-semibold text-ink-soft mb-1.5">Titre</label>
         <input

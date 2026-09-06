@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getAccessSummary, moduleIsUnlocked } from "@/lib/entitlements";
 import { startCheckout } from "@/lib/actions/billing";
+import { buildLessonTree, flattenLeaves } from "@/lib/lesson-tree";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -16,7 +17,7 @@ export default async function DashboardPage() {
 
   const { data: lessons } = await supabase
     .from("lessons")
-    .select("id, module_id, slug")
+    .select("id, module_id, slug, title, number, sort_order, parent_lesson_id, status")
     .eq("status", "published");
 
   const { data: progress } = user
@@ -37,9 +38,10 @@ export default async function DashboardPage() {
       <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3.5">
         {(modules ?? []).map((m) => {
           const moduleLessons = (lessons ?? []).filter((l) => l.module_id === m.id);
-          const done = moduleLessons.filter((l) => completedIds.has(l.id)).length;
-          const total = moduleLessons.length;
-          const firstLessonSlug = moduleLessons[0]?.slug;
+          const leaves = flattenLeaves(buildLessonTree(moduleLessons));
+          const done = leaves.filter((l) => completedIds.has(l.id)).length;
+          const total = leaves.length;
+          const firstLessonSlug = leaves[0]?.slug;
           const unlocked = moduleIsUnlocked(m, access);
 
           const cardBody = (
