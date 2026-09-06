@@ -36,6 +36,12 @@ async function loadSeedSql(): Promise<string> {
   return seedSqlCache;
 }
 
+/** La version attendue est celle déclarée dans le fichier lui-même — jamais dupliquée en dur ici. */
+function parseSchemaVersion(seedSql: string): number {
+  const match = seedSql.match(/insert into _sandbox_version \(version\) values \((\d+)\)/);
+  return match ? Number(match[1]) : 0;
+}
+
 export function SandboxProvider({ children }: { children: React.ReactNode }) {
   const dbRef = useRef<PGlite | null>(null);
   const [status, setStatus] = useState<SandboxStatus>("loading");
@@ -52,12 +58,22 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
         const db = dbRef.current ?? new PGlite("idb://datalendo-afripay-sandbox");
         dbRef.current = db;
 
+        const seedSql = await loadSeedSql();
+        const expectedVersion = parseSchemaVersion(seedSql);
+
         const check = await db.query<{ t: string | null }>(
-          "select to_regclass('public.fact_transactions') as t;"
+          "select to_regclass('public._sandbox_version') as t;"
         );
-        const alreadySeeded = check.rows[0]?.t != null;
-        if (!alreadySeeded) {
-          const seedSql = await loadSeedSql();
+        let currentVersion = 0;
+        if (check.rows[0]?.t != null) {
+          const versionRes = await db.query<{ version: number }>("select version from _sandbox_version;");
+          currentVersion = versionRes.rows[0]?.version ?? 0;
+        }
+
+        // Schéma absent ou périmé (version antérieure à celle du fichier
+        // courant) → on re-seed. Le script généré fait toujours un `drop
+        // table ... cascade` en tête, donc rejouer est sans risque.
+        if (currentVersion < expectedVersion) {
           await db.exec(seedSql);
         }
         if (!ignore) setStatus("ready");

@@ -70,7 +70,9 @@ export type LessonBlock =
     }
   | { type: "thinking_prompt"; text: string }
   | { type: "sql_code"; text: string; caption?: string }
-  | { type: "sql_sandbox"; prompt: string; starterQuery?: string };
+  | { type: "sql_sandbox"; prompt: string; starterQuery?: string }
+  | { type: "star_schema"; factTable: string; factColumns: string[]; dimensions: string[] }
+  | { type: "medallion"; layers: { name: string; description: string }[] };
 
 export interface LessonBodyContent {
   blocks: LessonBlock[];

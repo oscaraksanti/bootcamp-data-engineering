@@ -9,7 +9,7 @@ export default function FreeSandboxPage() {
         PostgreSQL réel, dans ton navigateur, préchargé avec le jeu de données AfriPay — entraîne-toi librement.
       </p>
       <p className="text-ink-faint text-xs font-mono mb-7">
-        Tables disponibles : dim_country · dim_customer · dim_merchant · dim_date · fx_rates · fact_transactions · raw_transactions_bronze
+        Tables disponibles : dim_country · dim_customer · dim_merchant · dim_agent · dim_date · fx_rates · fact_transactions · raw_transactions_bronze
       </p>
       <SandboxProvider>
         <SqlSandbox

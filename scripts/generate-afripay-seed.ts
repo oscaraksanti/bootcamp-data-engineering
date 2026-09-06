@@ -38,6 +38,18 @@ const COUNTRIES = [
   { code: "DZ", name: "Algérie", currency: "DZD", region: "Afrique du Nord", tz: "Africa/Algiers" },
 ];
 const CURRENCIES = [...new Set(COUNTRIES.map((c) => c.currency))];
+// Opérateurs mobile money dominants par pays — pour la colonne JSONB channel_metadata
+const MOBILE_OPERATORS: Record<string, string[]> = {
+  CD: ["Orange Money", "Airtel Money", "M-Pesa"],
+  CG: ["Airtel Money", "MTN MoMo"],
+  CI: ["Orange Money", "MTN MoMo", "Wave"],
+  SN: ["Orange Money", "Wave", "Free Money"],
+  ML: ["Orange Money", "Moov Money"],
+  KE: ["M-Pesa", "Airtel Money"],
+  MA: ["Orange Money Maroc", "inwi money"],
+  DZ: ["Djezzy Cash", "Mobilis Money"],
+};
+const CARD_NETWORKS = ["visa", "mastercard"];
 // Taux de départ approximatifs pour 1 USD (ordre de grandeur réaliste, pas des cours financiers réels)
 const BASE_RATE: Record<string, number> = { CDF: 2800, XAF: 610, XOF: 610, KES: 129, MAD: 9.9, DZD: 134 };
 
@@ -69,13 +81,18 @@ function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+// Incrémenté à chaque changement de schéma — le bac à sable (SandboxProvider)
+// lit cette valeur dans le fichier généré et la compare à celle stockée dans
+// IndexedDB pour savoir s'il doit re-seeder plutôt que réutiliser un schéma périmé.
+const SANDBOX_SCHEMA_VERSION = 2;
+
 const lines: string[] = [];
 lines.push("-- Jeu de données AfriPay — généré, ne pas éditer à la main.");
 lines.push("-- Voir scripts/generate-afripay-seed.ts pour régénérer.\n");
 
 // ============================================================ SCHÉMA
 lines.push(`
-drop table if exists raw_transactions_bronze, fact_transactions, fx_rates, dim_date, dim_merchant, dim_customer, dim_country cascade;
+drop table if exists raw_transactions_bronze, fact_transactions, fx_rates, dim_date, dim_agent, dim_merchant, dim_customer, dim_country cascade;
 
 create table dim_country (
   country_code text primary key,
@@ -99,6 +116,15 @@ create table dim_merchant (
   category text not null,
   country_code text references dim_country(country_code),
   onboarded_date date not null
+);
+
+create table dim_agent (
+  agent_id serial primary key,
+  agent_name text not null,
+  manager_id int references dim_agent(agent_id),
+  country_code text references dim_country(country_code),
+  role text not null check (role in ('regional_manager','field_agent','sub_agent')),
+  recruited_date date not null
 );
 
 create table dim_date (
@@ -129,6 +155,7 @@ create table fact_transactions (
   amount_local numeric(14,2) not null,
   currency_code text not null,
   channel text not null,
+  channel_metadata jsonb,
   status text not null check (status in ('completed','failed','pending'))
 );
 
@@ -187,6 +214,44 @@ const merchantCountry: string[] = [];
   lines.push(rows.join(",\n") + ";");
 }
 
+// ============================================================ DIM_AGENT (hiérarchie — réseau d'agents mobile money)
+{
+  const rows: string[] = [];
+  let nextId = 1;
+  const regionalManagerId: Record<string, number> = {};
+
+  for (const country of COUNTRIES) {
+    const id = nextId++;
+    regionalManagerId[country.code] = id;
+    const name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    const recruited = isoDate(dateAt(int(0, 60)));
+    rows.push(`  (${id}, ${sqlStr(name)}, null, ${sqlStr(country.code)}, 'regional_manager', ${sqlStr(recruited)})`);
+  }
+
+  for (const country of COUNTRIES) {
+    const fieldAgentCount = int(2, 4);
+    for (let i = 0; i < fieldAgentCount; i++) {
+      const id = nextId++;
+      const name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+      const recruited = isoDate(dateAt(int(30, 200)));
+      rows.push(
+        `  (${id}, ${sqlStr(name)}, ${regionalManagerId[country.code]}, ${sqlStr(country.code)}, 'field_agent', ${sqlStr(recruited)})`
+      );
+      const subAgentCount = int(0, 3);
+      for (let j = 0; j < subAgentCount; j++) {
+        const subId = nextId++;
+        const subName = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+        const subRecruited = isoDate(dateAt(int(200, totalDays)));
+        rows.push(`  (${subId}, ${sqlStr(subName)}, ${id}, ${sqlStr(country.code)}, 'sub_agent', ${sqlStr(subRecruited)})`);
+      }
+    }
+  }
+
+  lines.push("\ninsert into dim_agent (agent_id, agent_name, manager_id, country_code, role, recruited_date) values");
+  lines.push(rows.join(",\n") + ";");
+  lines.push(`select setval('dim_agent_agent_id_seq', ${nextId - 1});`);
+}
+
 // ============================================================ DIM_DATE
 {
   const rows: string[] = [];
@@ -222,6 +287,22 @@ const merchantCountry: string[] = [];
 }
 
 // ============================================================ FACT_TRANSACTIONS
+function buildChannelMetadata(channel: string, countryCode: string): string {
+  if (channel === "mobile_money") {
+    return JSON.stringify({
+      operator: pick(MOBILE_OPERATORS[countryCode]),
+      device_os: rnd() < 0.75 ? "android" : "ios",
+    });
+  }
+  if (channel === "carte") {
+    return JSON.stringify({
+      card_network: pick(CARD_NETWORKS),
+      last4: String(int(1000, 9999)),
+    });
+  }
+  return JSON.stringify({ bank_reference: `VIR-${int(100000, 999999)}` });
+}
+
 const TRANSACTION_COUNT = 5000;
 type Txn = {
   customerId: number; merchantId: number; countryCode: string;
@@ -247,13 +328,14 @@ const transactions: Txn[] = [];
     const channel = weightedChannel();
     const status = rnd() < 0.04 ? "failed" : rnd() < 0.06 ? "pending" : "completed";
     const dateKey = Number(isoDate(at).replace(/-/g, ""));
+    const metadata = buildChannelMetadata(channel, countryCode);
     transactions.push({ customerId, merchantId, countryCode, at, amount, currency, channel, status });
     rows.push(
-      `  (${customerId}, ${merchantId}, ${sqlStr(countryCode)}, ${sqlStr(at.toISOString())}, ${dateKey}, ${amount}, ${sqlStr(currency)}, ${sqlStr(channel)}, ${sqlStr(status)})`
+      `  (${customerId}, ${merchantId}, ${sqlStr(countryCode)}, ${sqlStr(at.toISOString())}, ${dateKey}, ${amount}, ${sqlStr(currency)}, ${sqlStr(channel)}, ${sqlStr(metadata)}, ${sqlStr(status)})`
     );
   }
   lines.push(
-    "\ninsert into fact_transactions (customer_id, merchant_id, country_code, transaction_at, date_key, amount_local, currency_code, channel, status) values"
+    "\ninsert into fact_transactions (customer_id, merchant_id, country_code, transaction_at, date_key, amount_local, currency_code, channel, channel_metadata, status) values"
   );
   lines.push(rows.join(",\n") + ";");
 }
@@ -287,6 +369,13 @@ const transactions: Txn[] = [];
   );
   lines.push(rows.join(",\n") + ";");
 }
+
+// ============================================================ VERSION DU SCHÉMA
+lines.push(`
+drop table if exists _sandbox_version;
+create table _sandbox_version (version int not null);
+insert into _sandbox_version (version) values (${SANDBOX_SCHEMA_VERSION});
+`);
 
 const outPath = join(process.cwd(), "public", "sandbox", "afripay-seed.sql");
 writeFileSync(outPath, lines.join("\n") + "\n", "utf-8");

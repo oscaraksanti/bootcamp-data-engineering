@@ -20,6 +20,8 @@ import {
 import { SqlCode } from "@/components/lesson/SqlCode";
 import { SqlSandbox } from "@/components/lesson/SqlSandbox";
 import { SandboxProvider } from "@/components/lesson/SandboxProvider";
+import { StarSchema } from "@/components/lesson/StarSchema";
+import { Medallion } from "@/components/lesson/Medallion";
 
 export function LessonBody({
   content,
@@ -189,6 +191,14 @@ function Block({ block }: { block: LessonBlock }) {
 
     case "sql_sandbox":
       return <SqlSandbox prompt={block.prompt} starterQuery={block.starterQuery} />;
+
+    case "star_schema":
+      return (
+        <StarSchema factTable={block.factTable} factColumns={block.factColumns} dimensions={block.dimensions} />
+      );
+
+    case "medallion":
+      return <Medallion layers={block.layers} />;
 
     default:
       return null;
