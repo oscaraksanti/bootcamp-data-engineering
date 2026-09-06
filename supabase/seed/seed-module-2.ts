@@ -5114,72 +5114,241 @@ async function main() {
     },
 
     // ============================================================
-    // 2.8 — PERFORMANCE & TUNING
+    // CHAPITRE 2.8 — PERFORMANCE & TUNING
     // ============================================================
     {
       number: "2.8",
       slug: "performance-et-tuning",
       title: "Performance & tuning",
-      duration_minutes: 180,
+      duration_minutes: 15,
       sort_order: 8,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Une requête correcte qui met douze secondes au lieu de douze millisecondes n'est pas juste lente — à l'échelle d'un pipeline de production qui l'exécute des milliers de fois par jour, c'est une facture cloud qui explose.",
+            text: "Une requête correcte qui met douze secondes au lieu de douze millisecondes n'est pas juste lente — à l'échelle d'un pipeline de production qui l'exécute des milliers de fois par jour, c'est une facture cloud qui explose et des utilisateurs qui attendent.",
           },
-          { type: "h3", text: "Index : B-tree, composite, partiel" },
+          {
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
+            items: [
+              "2.8.1 — Index B-tree simple : accélérer une recherche",
+              "2.8.2 — Index composite : l'ordre des colonnes compte",
+              "2.8.3 — Index partiel : cibler un sous-ensemble",
+              "2.8.4 — Quand NE PAS indexer",
+              "2.8.5 — Lire un plan EXPLAIN ANALYZE",
+              "2.8.6 — Seq Scan vs Index Scan",
+              "2.8.7 — Hash Join, Nested Loop, Merge Join",
+              "2.8.8 — Partitionnement par plage de dates",
+              "2.8.9 — Anti-patterns courants (SELECT *, cast implicite)",
+              "2.8.10 — Pagination par clé (keyset) et atelier de synthèse",
+            ],
+          },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.8.1",
+      slug: "index-btree-simple",
+      title: "Index B-tree simple : accélérer une recherche",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 25,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un index B-tree (le type par défaut en PostgreSQL) fonctionne comme l'index d'un livre : plutôt que de parcourir chaque page une par une, le moteur consulte une structure triée qui pointe directement vers les lignes recherchées.",
+          },
           {
             type: "sql_code",
-            text: "-- Index simple — accélère les recherches par country_code\ncreate index idx_transactions_country on fact_transactions(country_code);\n\n-- Index composite — utile si les requêtes filtrent country_code ET channel ensemble\ncreate index idx_transactions_country_channel on fact_transactions(country_code, channel);\n\n-- Index partiel — ne couvre que les transactions échouées, minuscule et ciblé\ncreate index idx_transactions_failed on fact_transactions(transaction_id) where status = 'failed';",
+            text: "-- Index simple — accélère les recherches et filtres par country_code\ncreate index idx_transactions_country on fact_transactions(country_code);\n\n-- Une recherche par country_code peut désormais éviter de scanner toute la table\nselect * from fact_transactions where country_code = 'SN';",
           },
           {
             type: "callout",
-            title: "Quand NE PAS indexer",
-            text: "Chaque index accélère les lectures mais ralentit chaque écriture (l'index doit être mis à jour) et consomme de l'espace disque. Indexer une colonne rarement filtrée, ou une table qui reçoit énormément d'écritures et peu de lectures, coûte souvent plus qu'il ne rapporte.",
-          },
-          { type: "h3", text: "Lire un plan d'exécution : EXPLAIN ANALYZE" },
-          {
-            type: "sql_code",
-            text: "explain analyze\nselect * from fact_transactions where country_code = 'CI' and channel = 'mobile_money';",
-          },
-          {
-            type: "list",
-            items: [
-              "Seq Scan — le moteur lit toute la table ligne par ligne (normal sur une petite table, coûteux sur des millions de lignes)",
-              "Index Scan — le moteur utilise un index pour sauter directement aux lignes pertinentes",
-              "Hash Join — construit une table de hachage en mémoire pour l'un des deux côtés, efficace quand un côté est petit",
-              "Nested Loop — compare chaque ligne d'un côté à chaque ligne de l'autre, efficace seulement sur de petits volumes",
-            ],
-          },
-          { type: "h3", text: "Partitionnement" },
-          {
-            type: "sql_code",
-            text: "-- Partitionnement par plage de dates — chaque requête filtrée par date ne scanne qu'une partition\ncreate table fact_transactions_partitioned (like fact_transactions)\n  partition by range (transaction_at);\n\ncreate table fact_transactions_2024 partition of fact_transactions_partitioned\n  for values from ('2024-01-01') to ('2025-01-01');",
+            title: "Un index accélère les WHERE, JOIN et ORDER BY sur la colonne indexée",
+            text: "Un index B-tree sert trois usages : une recherche par égalité (WHERE col = valeur), une comparaison d'intervalle (WHERE col BETWEEN ...), et un tri déjà ordonné (ORDER BY col) sans recalcul. Sans index, chacun de ces trois cas oblige potentiellement à lire toute la table.",
           },
           {
             type: "p",
-            text: "Le partition pruning permet au moteur d'ignorer entièrement les partitions hors du filtre de date — une requête sur \"le mois dernier\" n'a jamais besoin de toucher les partitions des années précédentes.",
-          },
-          { type: "h3", text: "Anti-patterns courants" },
-          {
-            type: "list",
-            items: [
-              "SELECT * en production — récupère des colonnes inutiles, empêche certaines optimisations d'index-only scan",
-              "Cast implicite dans un WHERE (ex. comparer un texte à un entier) — peut empêcher l'utilisation d'un index existant",
-              "Pagination par OFFSET à grande échelle — OFFSET 100000 oblige le moteur à lire puis jeter 100 000 lignes ; la pagination par clé (keyset, \"WHERE id > dernier_id_vu\") reste rapide quelle que soit la page",
-            ],
+            text: "PRIMARY KEY et UNIQUE créent automatiquement un index B-tree en arrière-plan — c'est ce qui rend une recherche par clé primaire quasi instantanée même sur une table de plusieurs millions de lignes, sans qu'aucun index explicite n'ait été créé manuellement.",
           },
           {
             type: "sql_sandbox",
-            prompt:
-              "Atelier — compare le plan d'exécution avant et après avoir créé un index sur country_code. Exécute d'abord EXPLAIN ANALYZE, crée l'index, puis relance la même requête.",
+            prompt: "Liste les index déjà existants sur fact_transactions (y compris ceux créés automatiquement par les contraintes).",
             starterQuery:
-              "explain analyze\nselect * from fact_transactions where country_code = 'SN';",
+              "select indexname, indexdef\nfrom pg_indexes\nwhere tablename = 'fact_transactions';",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel est le type d'index par défaut en PostgreSQL ?",
+          options: ["Hash", "B-tree", "GIN"],
+          correct_index: 1,
+          explain: "B-tree convient à la grande majorité des cas : égalité, intervalle, tri.",
+        },
+        {
+          question: "Une contrainte PRIMARY KEY crée-t-elle automatiquement un index ?",
+          options: ["Non, jamais", "Oui — c'est ce qui rend une recherche par clé primaire quasi instantanée", "Seulement sur demande explicite"],
+          correct_index: 1,
+          explain: "PRIMARY KEY et UNIQUE créent toujours un index B-tree en arrière-plan.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.2",
+      slug: "index-composite-ordre-colonnes",
+      title: "Index composite : l'ordre des colonnes compte",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 25,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un index composite couvre plusieurs colonnes à la fois — utile quand des requêtes filtrent régulièrement sur la MÊME combinaison de colonnes. Mais l'ordre dans lequel elles sont déclarées n'est pas arbitraire : il détermine quelles requêtes peuvent réellement en profiter.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Index composite — utile si les requêtes filtrent country_code ET channel ensemble\ncreate index idx_transactions_country_channel on fact_transactions(country_code, channel);\n\n-- Profite pleinement de l'index (utilise les deux colonnes, dans l'ordre)\nselect * from fact_transactions where country_code = 'CI' and channel = 'mobile_money';\n\n-- Profite PARTIELLEMENT de l'index (utilise seulement la première colonne)\nselect * from fact_transactions where country_code = 'CI';",
+          },
+          {
+            type: "callout",
+            title: "🪤 Un filtre sur la SEULE deuxième colonne n'utilise généralement pas l'index",
+            text: "`where channel = 'mobile_money'` seul (sans country_code) ne peut généralement PAS utiliser idx_transactions_country_channel efficacement — un index composite se comporte comme l'index d'un annuaire téléphonique trié par (nom, prénom) : chercher par prénom seul ne permet pas de sauter directement au bon endroit, il faut parcourir l'ensemble.",
+          },
+          {
+            type: "p",
+            text: "Règle pratique : place en premier la colonne la plus souvent filtrée SEULE ou avec la plus forte sélectivité (celle qui élimine le plus de lignes), et les colonnes complémentaires ensuite, dans l'ordre de fréquence d'utilisation combinée.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Crée un index composite sur (channel, status) et vérifie qu'il apparaît bien dans pg_indexes.",
+            starterQuery:
+              "create index if not exists idx_transactions_channel_status on fact_transactions(channel, status);\n\nselect indexname, indexdef from pg_indexes where tablename = 'fact_transactions';",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Un index composite sur (country_code, channel) profite-t-il pleinement à un filtre sur channel SEUL ?",
+          options: ["Oui, exactement de la même façon", "Généralement non — il faut inclure la première colonne pour en profiter pleinement", "Cela dépend uniquement de la taille de la table"],
+          correct_index: 1,
+          explain: "L'ordre des colonnes d'un index composite détermine quelles requêtes peuvent réellement l'exploiter.",
+        },
+        {
+          question: "Quelle colonne place-t-on généralement en premier dans un index composite ?",
+          options: [
+            "La colonne la plus souvent filtrée seule ou avec la plus forte sélectivité",
+            "Toujours la colonne la plus courte en taille",
+            "Peu importe, l'ordre n'a aucun effet",
+          ],
+          correct_index: 0,
+          explain: "C'est ce qui maximise le nombre de requêtes différentes capables de profiter de l'index.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.3",
+      slug: "index-partiel-cibler-sous-ensemble",
+      title: "Index partiel : cibler un sous-ensemble",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 20,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un index partiel n'indexe qu'un SOUS-ENSEMBLE des lignes d'une table, défini par une condition WHERE dans sa propre déclaration — plus petit, plus rapide à maintenir, et souvent suffisant quand seule une minorité de lignes est réellement interrogée fréquemment.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Index partiel — ne couvre que les transactions échouées, minuscule et ciblé\ncreate index idx_transactions_failed on fact_transactions(transaction_id) where status = 'failed';\n\n-- Ce filtre profite pleinement de l'index partiel, car sa condition correspond exactement\nselect * from fact_transactions where status = 'failed' and transaction_id = 4210;",
+          },
+          {
+            type: "callout",
+            title: "Le cas d'usage typique : une file de traitement ou un état minoritaire",
+            text: "Si 99% des transactions ont le statut 'completed' et seulement 1% 'failed', un index PARTIEL sur les transactions échouées est bien plus léger qu'un index complet sur toute la colonne status — utile par exemple pour une équipe support qui interroge quasi exclusivement les transactions en échec.",
+          },
+          {
+            type: "p",
+            text: "La condition WHERE de l'index partiel doit correspondre (ou être un sous-ensemble compatible) à la condition WHERE de la requête pour que l'index soit utilisé — un index partiel `where status = 'failed'` ne sert à rien pour une requête qui filtre sur `status = 'completed'`.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Crée un index partiel sur les transactions de plus de 1000 (potentiellement à surveiller), puis vérifie sa définition.",
+            starterQuery:
+              "create index if not exists idx_transactions_high_value on fact_transactions(transaction_id) where amount_local > 1000;\n\nselect indexname, indexdef from pg_indexes where indexname = 'idx_transactions_high_value';",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Qu'est-ce qui distingue un index partiel d'un index classique ?",
+          options: [
+            "Il indexe toutes les colonnes de la table",
+            "Il n'indexe qu'un sous-ensemble de lignes, défini par une condition WHERE propre à l'index",
+            "Il ne peut jamais être utilisé pour une recherche"
+          ],
+          correct_index: 1,
+          explain: "Plus petit et plus rapide à maintenir qu'un index complet, tant que la requête cible ce même sous-ensemble.",
+        },
+        {
+          question: "Un index partiel `where status = 'failed'` est-il utile pour une requête qui filtre sur `status = 'completed'` ?",
+          options: [
+            "Oui, toujours",
+            "Non — la condition de l'index ne correspond pas à celle de la requête",
+            "Seulement si la table est petite",
+          ],
+          correct_index: 1,
+          explain: "La condition WHERE de l'index doit être compatible avec celle de la requête pour être exploitée.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.4",
+      slug: "quand-ne-pas-indexer",
+      title: "Quand NE PAS indexer",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 20,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "callout",
+            title: "Chaque index a un coût, pas seulement un bénéfice",
+            text: "Un index accélère les LECTURES mais ralentit chaque ÉCRITURE (l'index doit être mis à jour à chaque INSERT/UPDATE/DELETE) et consomme de l'espace disque supplémentaire. Indexer une colonne rarement filtrée, ou une table qui reçoit énormément d'écritures et peu de lectures, coûte souvent plus qu'il ne rapporte.",
+          },
+          {
+            type: "table",
+            headers: ["Situation", "Indexer ou non ?"],
+            rows: [
+              ["Colonne filtrée dans la majorité des requêtes lues", "Oui — le gain de lecture dépasse largement le coût d'écriture"],
+              ["Colonne quasiment jamais utilisée dans un WHERE/JOIN/ORDER BY", "Non — coût de maintenance sans aucun bénéfice"],
+              ["Table à très fort volume d'écriture, peu de lectures (ex. table de logs bruts)", "Réfléchir à deux fois — chaque index ralentit chaque écriture"],
+              ["Colonne à très faible cardinalité (ex. boolean avec 90% de 'true')", "Souvent inutile — le moteur préfère parfois un Seq Scan de toute façon"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Vérifier si un index existant est réellement utilisé (statistiques d'usage)\nselect indexrelname, idx_scan\nfrom pg_stat_user_indexes\nwhere relname = 'fact_transactions';",
+            caption: "idx_scan proche de zéro après une période d'usage normale signale un index candidat à la suppression.",
           },
           {
             type: "thinking_prompt",
-            text: "Cette requête met 12 secondes. Le goulot est-il l'absence d'index, une jointure mal ordonnée, ou simplement le volume de données ? EXPLAIN ANALYZE ne donne pas juste un chiffre — il donne la réponse, étape par étape.",
+            text: "Un index jamais utilisé n'est pas neutre — il continue de coûter de l'espace et de ralentir chaque écriture, sans jamais rien apporter en retour. Vérifier périodiquement l'usage réel des index (pg_stat_user_indexes) fait partie de la maintenance normale d'une base en production.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie l'usage réel de tous les index existants sur fact_transactions.",
+            starterQuery:
+              "select indexrelname, idx_scan, idx_tup_read\nfrom pg_stat_user_indexes\nwhere relname = 'fact_transactions'\norder by idx_scan;",
           },
         ],
       },
@@ -5195,6 +5364,121 @@ async function main() {
           explain: "Un index a un coût de maintenance à chaque écriture — il faut qu'il soit rentabilisé par des lectures fréquentes.",
         },
         {
+          question: "Comment vérifier si un index existant est réellement utilisé en pratique ?",
+          options: [
+            "Il n'existe aucun moyen de le savoir",
+            "En consultant pg_stat_user_indexes et son compteur idx_scan",
+            "En comptant le nombre de colonnes de la table",
+          ],
+          correct_index: 1,
+          explain: "Un idx_scan proche de zéro après une période normale d'usage signale un index candidat à la suppression.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.5",
+      slug: "lire-plan-explain-analyze",
+      title: "Lire un plan EXPLAIN ANALYZE",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 25,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "EXPLAIN ANALYZE ne devine pas — il EXÉCUTE réellement la requête et rapporte ce que le moteur a fait à chaque étape : quelle méthode d'accès, combien de lignes réellement traitées, et combien de temps chaque étape a pris.",
+          },
+          {
+            type: "sql_code",
+            text: "explain analyze\nselect * from fact_transactions where country_code = 'CI' and channel = 'mobile_money';",
+          },
+          {
+            type: "callout",
+            title: "EXPLAIN seul vs EXPLAIN ANALYZE — une différence importante",
+            text: "EXPLAIN (sans ANALYZE) montre le plan PRÉVU par le moteur, sans exécuter la requête — rapide, mais basé sur des estimations statistiques qui peuvent être fausses. EXPLAIN ANALYZE exécute réellement la requête et compare le prévu au réel — plus lent (la requête tourne pour de vrai), mais bien plus fiable pour diagnostiquer un problème de performance réel.",
+          },
+          {
+            type: "p",
+            text: "Deux chiffres à toujours comparer dans un plan EXPLAIN ANALYZE : le nombre de lignes ESTIMÉ par le planificateur (rows=...) versus le nombre de lignes RÉELLEMENT obtenu (actual rows=...). Un grand écart entre les deux signale des statistiques périmées, souvent corrigeable par un ANALYZE explicite sur la table.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Rafraîchir les statistiques utilisées par le planificateur, si elles semblent périmées\nanalyze fact_transactions;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Compare EXPLAIN et EXPLAIN ANALYZE sur la même requête.",
+            starterQuery:
+              "explain select * from fact_transactions where country_code = 'MA';",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle différence essentielle entre EXPLAIN seul et EXPLAIN ANALYZE ?",
+          options: [
+            "Aucune différence",
+            "EXPLAIN ANALYZE exécute réellement la requête et compare l'estimé au réel ; EXPLAIN seul ne fait qu'estimer",
+            "EXPLAIN ANALYZE ne fonctionne que sur de petites tables",
+          ],
+          correct_index: 1,
+          explain: "C'est ce qui rend EXPLAIN ANALYZE plus fiable pour diagnostiquer un vrai problème de performance.",
+        },
+        {
+          question: "Un grand écart entre rows (estimé) et actual rows (réel) dans un plan signale généralement :",
+          options: [
+            "Une erreur de syntaxe",
+            "Des statistiques périmées du planificateur, corrigeables par un ANALYZE explicite",
+            "Un index manquant obligatoirement",
+          ],
+          correct_index: 1,
+          explain: "ANALYZE rafraîchit les statistiques que le planificateur utilise pour estimer le coût des différents plans possibles.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.6",
+      slug: "seq-scan-vs-index-scan",
+      title: "Seq Scan vs Index Scan",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Ce sont les deux façons fondamentales dont PostgreSQL peut accéder aux lignes d'une table — comprendre lequel un plan choisit, et pourquoi, est la compétence de base du tuning de requêtes.",
+          },
+          {
+            type: "table",
+            headers: ["Méthode d'accès", "Comportement", "Situation typique"],
+            rows: [
+              ["Seq Scan", "Lit la table entière, ligne par ligne, du début à la fin", "Normal sur une petite table ; potentiellement coûteux sur des millions de lignes sans filtre sélectif"],
+              ["Index Scan", "Utilise un index pour sauter directement aux lignes pertinentes, puis va chercher chaque ligne dans la table", "Efficace quand peu de lignes correspondent au filtre (haute sélectivité)"],
+              ["Index Only Scan", "Comme Index Scan, mais sans jamais toucher la table — toutes les colonnes demandées sont déjà dans l'index", "Le plus rapide des trois, mais rare (nécessite un index qui couvre TOUTES les colonnes du SELECT)"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Un Seq Scan n'est pas toujours un problème",
+            text: "Sur une petite table (quelques milliers de lignes), un Seq Scan est souvent PLUS rapide qu'un Index Scan — le coût de consulter l'index puis d'aller chercher chaque ligne dans la table peut dépasser le coût de tout lire directement. Le planificateur PostgreSQL choisit généralement le bon plan automatiquement ; le vrai signal d'alerte est un Seq Scan sur une GRANDE table avec un filtre très sélectif qui devrait normalement utiliser un index existant.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Forcer artificiellement la comparaison (à des fins pédagogiques uniquement, jamais en production)\nset enable_seqscan = off;\nexplain select * from fact_transactions where country_code = 'CI';\nset enable_seqscan = on;  -- toujours réactiver ensuite",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Observe le plan d'exécution sur fact_transactions filtré par country_code, avec l'index déjà créé en 2.8.1.",
+            starterQuery:
+              "explain analyze select * from fact_transactions where country_code = 'CI';",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "Dans un plan EXPLAIN ANALYZE, un Seq Scan signifie :",
           options: [
             "Une erreur de requête",
@@ -5205,6 +5489,254 @@ async function main() {
           explain: "Normal sur une petite table ; potentiellement coûteux à grande échelle si un index aurait pu être utilisé.",
         },
         {
+          question: "Qu'est-ce qui rend un Index Only Scan encore plus rapide qu'un Index Scan classique ?",
+          options: [
+            "Il ne touche jamais la table elle-même, si l'index couvre déjà toutes les colonnes demandées",
+            "Il ignore les conditions WHERE",
+            "Aucune différence réelle entre les deux"
+          ],
+          correct_index: 0,
+          explain: "L'Index Scan classique doit encore aller chercher les colonnes non couvertes dans la table elle-même — l'Index Only Scan évite complètement cette étape.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.7",
+      slug: "hash-join-nested-loop-merge-join",
+      title: "Hash Join, Nested Loop, Merge Join",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 25,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une jointure peut s'exécuter physiquement de trois façons différentes — le choix appartient entièrement au planificateur PostgreSQL, selon la taille des tables et les index disponibles.",
+          },
+          {
+            type: "table",
+            headers: ["Algorithme", "Fonctionnement", "Efficace quand"],
+            rows: [
+              ["Hash Join", "Construit une table de hachage en mémoire pour l'un des deux côtés (le plus petit), puis parcourt l'autre côté en cherchant les correspondances", "Un des deux côtés tient confortablement en mémoire — le cas le plus fréquent sur des jointures de taille moyenne"],
+              ["Nested Loop", "Compare chaque ligne d'un côté à chaque ligne de l'autre, dans une double boucle", "Efficace seulement sur de très petits volumes, ou quand un index permet d'éviter la boucle complète côté droit"],
+              ["Merge Join", "Fusionne deux ensembles déjà triés sur la clé de jointure, comme fusionner deux piles de cartes déjà ordonnées", "Les deux côtés sont déjà triés (ou un tri est peu coûteux) sur la colonne de jointure"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "explain analyze\nselect t.transaction_id, m.merchant_name\nfrom fact_transactions t\njoin dim_merchant m on m.merchant_id = t.merchant_id;",
+            caption: "dim_merchant est petite (50 lignes) — le planificateur choisit très probablement un Hash Join, la table de hachage tenant facilement en mémoire.",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi Nested Loop n'est pas \"le mauvais\" algorithme",
+            text: "Un Nested Loop sur une jointure où la table de droite a un index sur sa colonne de jointure peut être TRÈS rapide — chaque ligne de gauche va chercher directement sa correspondance via l'index, sans jamais parcourir toute la table de droite. Le problème survient uniquement quand Nested Loop est choisi SANS index disponible, sur de gros volumes des deux côtés — alors chaque comparaison devient un Seq Scan répété.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Observe quel algorithme de jointure le planificateur choisit pour joindre fact_transactions à dim_merchant.",
+            starterQuery:
+              "explain analyze\nselect t.transaction_id, m.merchant_name\nfrom fact_transactions t\njoin dim_merchant m on m.merchant_id = t.merchant_id\nlimit 100;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Un Hash Join construit une table de hachage en mémoire pour :",
+          options: ["Les deux côtés de la jointure toujours", "Un seul côté, généralement le plus petit", "Aucun des deux côtés"],
+          correct_index: 1,
+          explain: "C'est ce qui rend le Hash Join efficace quand un côté tient confortablement en mémoire.",
+        },
+        {
+          question: "Un Nested Loop peut-il être rapide, même sur un volume important d'un côté ?",
+          options: [
+            "Non, jamais",
+            "Oui — si la table de droite a un index sur sa colonne de jointure, évitant un parcours complet à chaque itération",
+            "Seulement si les deux tables sont vides",
+          ],
+          correct_index: 1,
+          explain: "Le problème n'est pas Nested Loop en soi, mais son usage SANS index disponible sur de gros volumes.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.8",
+      slug: "partitionnement-plage-dates",
+      title: "Partitionnement par plage de dates",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 25,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Le partitionnement découpe physiquement une grande table en plusieurs tables plus petites (des partitions), tout en la présentant comme une seule table logique aux requêtes — une technique essentielle quand une table dépasse plusieurs dizaines de millions de lignes.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Partitionnement par plage de dates — chaque requête filtrée par date ne scanne qu'une partition\ncreate table fact_transactions_partitioned (like fact_transactions)\n  partition by range (transaction_at);\n\ncreate table fact_transactions_2024 partition of fact_transactions_partitioned\n  for values from ('2024-01-01') to ('2025-01-01');\n\ncreate table fact_transactions_2025 partition of fact_transactions_partitioned\n  for values from ('2025-01-01') to ('2026-01-01');",
+          },
+          {
+            type: "callout",
+            title: "Partition pruning : l'avantage principal du partitionnement",
+            text: "Le partition pruning permet au moteur d'IGNORER ENTIÈREMENT les partitions hors du filtre de date, sans même les ouvrir. Une requête sur \"le mois dernier\" n'a jamais besoin de toucher les partitions des années précédentes — contrairement à une table non partitionnée, où un index doit être parcouru même s'il exclut rapidement les lignes non pertinentes.",
+          },
+          {
+            type: "p",
+            text: "Le partitionnement facilite aussi la maintenance : archiver ou supprimer \"toutes les transactions de 2022\" devient un simple DROP TABLE sur la partition correspondante — quasi instantané, contrairement à un DELETE massif sur une table non partitionnée qui devrait parcourir et verrouiller des millions de lignes une par une.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Vérifier quelles partitions une requête va réellement toucher (partition pruning visible dans EXPLAIN)\nexplain select * from fact_transactions_partitioned\nwhere transaction_at >= '2024-06-01' and transaction_at < '2024-07-01';",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Liste les partitions existantes de fact_transactions_partitioned.",
+            starterQuery:
+              "select inhrelid::regclass as partition\nfrom pg_inherits\nwhere inhparent = 'fact_transactions_partitioned'::regclass;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel est le principal avantage du partition pruning ?",
+          options: [
+            "Il trie automatiquement les données",
+            "Le moteur ignore entièrement les partitions hors du filtre, sans même les ouvrir",
+            "Il supprime automatiquement les anciennes données"
+          ],
+          correct_index: 1,
+          explain: "Une requête sur \"le mois dernier\" n'a jamais besoin de toucher les partitions des années précédentes.",
+        },
+        {
+          question: "Pourquoi le partitionnement facilite-t-il l'archivage de données anciennes ?",
+          options: [
+            "Il ne facilite rien de particulier",
+            "Supprimer une partition entière (DROP TABLE) est quasi instantané, contrairement à un DELETE massif ligne par ligne",
+            "Le partitionnement empêche toute suppression de données"
+          ],
+          correct_index: 1,
+          explain: "DROP TABLE sur une partition évite le coût d'un DELETE qui devrait parcourir et verrouiller des millions de lignes.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.9",
+      slug: "anti-patterns-select-star-cast-implicite",
+      title: "Anti-patterns courants (SELECT *, cast implicite)",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 25,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Certaines habitudes d'écriture SQL, sans être des erreurs de syntaxe, dégradent silencieusement la performance ou empêchent des optimisations que le moteur aurait pu appliquer.",
+          },
+          { type: "h3", text: "SELECT * en production" },
+          {
+            type: "callout",
+            title: "Pourquoi SELECT * coûte plus cher qu'il n'y paraît",
+            text: "SELECT * récupère TOUTES les colonnes, y compris celles jamais utilisées par l'application — plus de données à transférer, et surtout, ça empêche un Index Only Scan (Leçon 2.8.6) dès que l'index ne couvre pas la totalité des colonnes de la table. Nommer explicitement les colonnes nécessaires permet au moteur d'exploiter des optimisations invisibles avec SELECT *.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ❌ Récupère toutes les colonnes, même channel_metadata (JSONB, potentiellement volumineux) inutilisé ici\nselect * from fact_transactions where country_code = 'CI' limit 100;\n\n-- ✅ Ne demande que ce qui est réellement utilisé\nselect transaction_id, amount_local, status from fact_transactions where country_code = 'CI' limit 100;",
+          },
+          { type: "h3", text: "Cast implicite dans un WHERE" },
+          {
+            type: "sql_code",
+            text: "-- ⚠ merchant_id est un entier ; comparer à une chaîne '12' force un cast implicite qui peut désactiver un index\nselect * from fact_transactions where merchant_id = '12';\n\n-- ✅ Comparer avec le bon type dès le départ évite toute ambiguïté de cast\nselect * from fact_transactions where merchant_id = 12;",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi un cast implicite peut désactiver un index",
+            text: "Selon le type exact et l'index en place, PostgreSQL doit parfois convertir CHAQUE VALEUR de la colonne indexée pour comparer, ce qui rend l'index inutilisable pour cette requête précise — le moteur bascule alors vers un Seq Scan complet. Écrire directement le bon type dans la requête évite ce problème à la source.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Compare les colonnes réellement nécessaires vs SELECT * pour une requête de reporting simple.",
+            starterQuery:
+              "select country_code, count(*), sum(amount_local)\nfrom fact_transactions\ngroup by country_code;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi SELECT * peut-il empêcher un Index Only Scan ?",
+          options: [
+            "Ce n'est jamais le cas",
+            "Parce qu'il demande toutes les colonnes, y compris celles non couvertes par l'index, forçant un accès à la table",
+            "SELECT * est interdit en PostgreSQL",
+          ],
+          correct_index: 1,
+          explain: "Nommer explicitement les colonnes nécessaires permet parfois de rester entièrement dans l'index.",
+        },
+        {
+          question: "Pourquoi comparer une colonne entière à une chaîne de caractères (ex. merchant_id = '12') peut-il désactiver un index ?",
+          options: [
+            "Ça n'a aucun effet",
+            "Le cast implicite nécessaire peut empêcher le moteur d'utiliser l'index existant sur cette colonne",
+            "PostgreSQL refuse d'exécuter une telle comparaison",
+          ],
+          correct_index: 1,
+          explain: "Écrire directement le bon type évite ce problème et permet au planificateur d'utiliser l'index normalement.",
+        },
+      ],
+    },
+
+    {
+      number: "2.8.10",
+      slug: "pagination-par-cle-keyset-atelier-synthese",
+      title: "Pagination par clé (keyset) et atelier de synthèse",
+      parentSlug: "performance-et-tuning",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "callout",
+            title: "🪤 Pourquoi la pagination par OFFSET devient un problème à grande échelle",
+            text: "`LIMIT 20 OFFSET 100000` ne \"saute\" pas magiquement les 100 000 premières lignes : le moteur les lit puis les jette. Sur une page profonde, PostgreSQL doit quand même parcourir 100 020 lignes pour n'en renvoyer que 20 — le coût grandit linéairement avec la profondeur de page, peu importe l'index en place.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ❌ Pagination par OFFSET : coûteuse sur les pages profondes\nselect * from fact_transactions order by transaction_id limit 20 offset 100000;\n\n-- ✅ Pagination par clé (keyset) : reste rapide quelle que soit la profondeur de page\nselect * from fact_transactions\nwhere transaction_id > 100000   -- le dernier id vu sur la page précédente\norder by transaction_id\nlimit 20;",
+          },
+          {
+            type: "p",
+            text: "La pagination par clé exige simplement de retenir le dernier identifiant vu (ou la dernière valeur de tri) entre deux appels — l'application garde ce curseur, plutôt que de demander au moteur de recompter depuis le début à chaque page.",
+          },
+          { type: "h3", text: "Atelier de synthèse — tout le chapitre en une session" },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.9 si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais créer un index B-tree, composite, et partiel selon le besoin réel",
+              "Je sais lire un plan EXPLAIN ANALYZE et repérer Seq Scan vs Index Scan",
+              "Je sais qu'un index a un coût d'écriture, pas seulement un bénéfice de lecture",
+              "Je sais pourquoi le partitionnement accélère les requêtes filtrées par date",
+              "Je sais éviter SELECT * et le cast implicite, et préférer une pagination par clé",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Livrable — compare le plan d'exécution avant/après un index sur channel, pour une requête de reporting fréquente.",
+            starterQuery:
+              "explain analyze\nselect channel, count(*), sum(amount_local)\nfrom fact_transactions\nwhere channel = 'mobile_money'\ngroup by channel;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Cette requête met 12 secondes. Le goulot est-il l'absence d'index, une jointure mal ordonnée, ou simplement le volume de données ? EXPLAIN ANALYZE ne donne pas juste un chiffre — il donne la réponse, étape par étape, exactement comme tu l'as pratiqué tout au long de ce chapitre.",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "Pourquoi la pagination par OFFSET devient-elle problématique à grande échelle ?",
           options: [
             "Elle n'est pas supportée par PostgreSQL",
@@ -5213,6 +5745,16 @@ async function main() {
           ],
           correct_index: 1,
           explain: "La pagination par clé (keyset) évite ce coût en filtrant directement à partir du dernier identifiant vu.",
+        },
+        {
+          question: "Que doit retenir une application pour implémenter une pagination par clé (keyset) ?",
+          options: [
+            "Le numéro de la page actuelle uniquement",
+            "Le dernier identifiant (ou valeur de tri) vu sur la page précédente",
+            "Rien, c'est automatique"
+          ],
+          correct_index: 1,
+          explain: "Ce curseur remplace le besoin de recompter les lignes depuis le début à chaque nouvelle page.",
         },
       ],
     },
