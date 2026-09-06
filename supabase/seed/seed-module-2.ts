@@ -33,7 +33,6 @@ async function main() {
         title: "SQL & Modélisation des Données",
         hours_min: 38,
         hours_max: 42,
-        is_free: false,
         status: "published",
         sort_order: 2,
         certificate_blurb:
@@ -6390,50 +6389,550 @@ async function main() {
     },
 
     // ============================================================
-    // 2.10 — CAPSTONE
+    // CHAPITRE 2.10 — CAPSTONE
     // ============================================================
     {
       number: "2.10",
       slug: "capstone-afripay-data-platform",
       title: "Capstone — AfriPay Data Platform",
-      duration_minutes: 180,
+      duration_minutes: 15,
       sort_order: 10,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Ce module ne s'est jamais dispersé en exercices déconnectés : depuis la leçon 2.6, tu construis progressivement une seule et même plateforme de données. Ce dernier module est la consolidation et la restitution — pas un nouveau départ.",
+            text: "Ce module ne s'est jamais dispersé en exercices déconnectés : depuis le Chapitre 2.6, tu construis progressivement une seule et même plateforme de données. Ce dernier chapitre est la consolidation et la restitution — pas un nouveau départ, et volontairement AUCUN nouveau concept SQL n'y est introduit.",
           },
-          { type: "h3", text: "Revue du pipeline complet" },
           {
             type: "checklist",
-            title: "Avant de restituer, vérifie que tu peux répondre oui à chaque point",
+            title: "Les 10 leçons de ce chapitre — chacune une étape du livrable final",
             items: [
-              "Mon schéma Gold (star schema) a un grain clair et documenté pour chaque table",
-              "Mon chargement Bronze → Silver → Gold est idempotent : je peux le relancer sans dupliquer",
-              "Mes tests de qualité (NULL, doublons, intégrité référentielle) passent sur la couche Silver",
-              "Je sais expliquer pourquoi j'ai choisi un star schema plutôt qu'un OBT pour ce cas précis",
-              "Au moins une requête analytique dans mon projet utilise une window function ou un as-of join",
+              "2.10.1 — Cahier des charges du capstone : ce qui est attendu",
+              "2.10.2 — Étape 1 : vérifier et documenter le modèle Gold",
+              "2.10.3 — Étape 2 : construire et vérifier la couche Silver complète",
+              "2.10.4 — Étape 3 : rendre le chargement Gold idempotent",
+              "2.10.5 — Étape 4 : ajouter les tests de qualité",
+              "2.10.6 — Étape 5 : indexer et vérifier la performance des requêtes clés",
+              "2.10.7 — Étape 6 : construire le data mart final",
+              "2.10.8 — Étape 7 : documenter le projet (structure du dépôt, README)",
+              "2.10.9 — Étape 8 : préparer la restitution orale",
+              "2.10.10 — Revue finale complète et quiz de validation du module",
             ],
           },
-          { type: "h3", text: "Data Mart final : les métriques business" },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.10.1",
+      slug: "cahier-des-charges-capstone",
+      title: "Cahier des charges du capstone : ce qui est attendu",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 20,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Le capstone AfriPay Data Platform n'est pas un exercice de plus — c'est le livrable que tu montreras en entretien technique. Il rassemble, en un seul projet cohérent, tout ce que les Chapitres 2.1 à 2.9 t'ont appris.",
+          },
+          {
+            type: "checklist",
+            title: "Ce que le livrable final doit contenir",
+            items: [
+              "Un modèle Gold (star schema) avec un grain documenté pour chaque table — Chapitre 2.6",
+              "Une couche Silver qui applique des règles de qualité vérifiables — Chapitre 2.7",
+              "Un chargement Bronze → Silver → Gold idempotent, rejouable sans dupliquer — Chapitre 2.7",
+              "Au moins un test de qualité automatisé (SQL pur ou dbt) par risque identifié — Chapitre 2.9",
+              "Au moins une requête analytique utilisant une window function ou un as-of join — Chapitre 2.4",
+              "Un data mart final répondant à une vraie question business — toutes les compétences combinées",
+              "Une documentation qui explique le POURQUOI des choix, pas seulement le COMMENT",
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi ce chapitre n'introduit aucun nouveau concept SQL",
+            text: "Le capstone teste ta capacité à COMBINER ce que tu sais déjà, pas à apprendre encore plus de syntaxe. Un recruteur ne cherche pas quelqu'un qui connaît 200 fonctions SQL par cœur — il cherche quelqu'un capable d'assembler un nombre plus restreint de concepts solides en un système cohérent et défendable.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Avant de commencer, relis mentalement chaque titre de chapitre depuis 2.1 — si l'un d'eux te semble flou, c'est le moment d'y retourner rapidement, PAS pendant la construction du capstone lui-même.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Le capstone AfriPay Data Platform a-t-il pour but d'introduire de nouveaux concepts SQL ?",
+          options: [
+            "Oui, plusieurs concepts avancés supplémentaires",
+            "Non — il combine et applique tout ce qui a été appris depuis le Chapitre 2.1",
+            "Seulement des concepts de sécurité"
+          ],
+          correct_index: 1,
+          explain: "Le capstone teste la capacité à assembler des compétences déjà acquises, pas à en apprendre de nouvelles.",
+        },
+        {
+          question: "Qu'est-ce qui distingue le plus un bon capstone d'un simple exercice technique ?",
+          options: [
+            "Le nombre de lignes de code",
+            "Une documentation qui explique le POURQUOI des choix, pas seulement le COMMENT",
+            "L'absence totale de commentaires"
+          ],
+          correct_index: 1,
+          explain: "C'est exactement ce qu'un recruteur évalue : la capacité à justifier des décisions, pas juste à produire du code qui fonctionne.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.2",
+      slug: "etape-1-verifier-documenter-modele-gold",
+      title: "Étape 1 : vérifier et documenter le modèle Gold",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 25,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Premier livrable : prouver que le star schema AfriPay respecte réellement les principes du Chapitre 2.6 — pas juste l'affirmer, le VÉRIFIER par requête.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie le grain de fact_transactions (Chapitre 2.6.8) : aucun transaction_id ne doit apparaître en double.",
+            starterQuery:
+              "select transaction_id, count(*)\nfrom fact_transactions\ngroup by transaction_id\nhaving count(*) > 1;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie l'intégrité référentielle complète (Chapitre 2.6.10) : chaque transaction référence un client, un marchand et un pays existants.",
+            starterQuery:
+              "select count(*) as transactions_orphelines\nfrom fact_transactions t\nleft join dim_customer c on c.customer_id = t.customer_id\nleft join dim_merchant m on m.merchant_id = t.merchant_id\nleft join dim_country co on co.country_code = t.country_code\nwhere c.customer_id is null or m.merchant_id is null or co.country_code is null;",
+          },
+          {
+            type: "callout",
+            title: "Documenter le grain, pas seulement le vérifier",
+            text: "Pour le livrable final, chaque table Gold doit avoir une ligne de documentation qui répond explicitement à \"que représente une seule ligne ?\" — exactement la question du grain vue au Chapitre 2.6.8. Cette phrase, écrite noir sur blanc, évite qu'un futur collègue (ou toi dans six mois) ne fasse une hypothèse erronée sur le grain.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Documente rapidement chaque dimension : combien de lignes contient-elle actuellement ?",
+            starterQuery:
+              "select 'dim_customer' as table_name, count(*) from dim_customer\nunion all select 'dim_merchant', count(*) from dim_merchant\nunion all select 'dim_country', count(*) from dim_country\nunion all select 'dim_agent', count(*) from dim_agent\nunion all select 'dim_date', count(*) from dim_date;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Comment prouve-t-on concrètement que le grain de fact_transactions est respecté ?",
+          options: [
+            "En l'affirmant dans la documentation sans vérification",
+            "En vérifiant par requête qu'aucun transaction_id n'apparaît en double",
+            "En comptant le nombre de colonnes de la table",
+          ],
+          correct_index: 1,
+          explain: "Une affirmation non vérifiée n'a aucune valeur en entretien — la preuve par requête est ce qui compte.",
+        },
+        {
+          question: "Pourquoi documenter explicitement le grain de chaque table Gold ?",
+          options: [
+            "Ce n'est pas nécessaire si le schéma est correct",
+            "Pour éviter qu'un futur lecteur fasse une hypothèse erronée sur ce que représente une ligne",
+            "Uniquement pour respecter une convention arbitraire"
+          ],
+          correct_index: 1,
+          explain: "C'est exactement le risque identifié au Chapitre 2.6.8 : se tromper de grain casse silencieusement toute analyse future.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.3",
+      slug: "etape-2-construire-verifier-couche-silver",
+      title: "Étape 2 : construire et vérifier la couche Silver complète",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 25,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Deuxième livrable : la couche Silver complète, construite avec TOUTES les règles de qualité vues au Chapitre 2.7 — pas une version partielle qui ne traite qu'un seul type de problème.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Reconstruis la couche Silver complète (NULL, dates invalides, merchant_id orphelins) et compare au volume brut.",
+            starterQuery:
+              "select count(*) as lignes_brutes,\n  count(*) filter (\n    where customer_id is not null\n    and amount_local is not null\n    and transaction_at_raw ~ '^\\d{4}-\\d{2}-\\d{2}'\n    and merchant_id::int in (select merchant_id from dim_merchant)\n  ) as lignes_propres_silver\nfrom raw_transactions_bronze;",
+          },
+          {
+            type: "callout",
+            title: "Un chiffre seul ne suffit pas — explique le taux de rejet",
+            text: "\"3% des lignes rejetées\" n'a de valeur que si tu peux expliquer POURQUOI : combien à cause de NULL, combien à cause de dates invalides, combien à cause de références orphelines. Cette ventilation, présentée en entretien, démontre une vraie maîtrise de la donnée — pas juste l'exécution d'un script.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Ventile précisément les causes de rejet, une par une.",
+            starterQuery:
+              "select\n  count(*) filter (where customer_id is null) as rejet_customer_null,\n  count(*) filter (where amount_local is null) as rejet_montant_null,\n  count(*) filter (where transaction_at_raw !~ '^\\d{4}-\\d{2}-\\d{2}') as rejet_date_invalide,\n  count(*) filter (where merchant_id::int not in (select merchant_id from dim_merchant)) as rejet_merchant_orphelin\nfrom raw_transactions_bronze;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi un simple pourcentage de rejet (\"3% rejetés\") ne suffit-il pas en entretien ?",
+          options: [
+            "Le pourcentage n'a aucune importance",
+            "Sans ventilation des causes (NULL, dates, orphelins), il ne démontre pas une vraie compréhension de la donnée",
+            "Il faut toujours viser 0% de rejet"
+          ],
+          correct_index: 1,
+          explain: "La ventilation par cause démontre que tu comprends précisément ce qui a été filtré et pourquoi.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.4",
+      slug: "etape-3-chargement-gold-idempotent",
+      title: "Étape 3 : rendre le chargement Gold idempotent",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 25,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Troisième livrable : prouver — pas juste affirmer — que le chargement Silver → Gold peut être relancé sans jamais dupliquer de données, exactement le principe d'idempotence du Chapitre 2.7.4.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Relance deux fois de suite le chargement idempotent (ON CONFLICT) et vérifie que le compte de lignes ne bouge pas entre les deux exécutions.",
+            starterQuery:
+              "insert into fact_transactions (transaction_id, customer_id, merchant_id, country_code, transaction_at, amount_local, currency_code, channel, status)\nselect b.transaction_id::int, b.customer_id::int, b.merchant_id::int, b.country_code,\n       b.transaction_at_raw::timestamptz, b.amount_local::numeric, b.currency_code, b.channel, b.status\nfrom raw_transactions_bronze b\nwhere b.customer_id is not null and b.merchant_id::int in (select merchant_id from dim_merchant)\non conflict (transaction_id) do update set status = excluded.status;\n\nselect count(*) from fact_transactions;",
+          },
+          {
+            type: "callout",
+            title: "La preuve d'idempotence, ce n'est pas \"ça n'a pas planté\"",
+            text: "La vraie preuve d'idempotence est un COMPTE DE LIGNES IDENTIQUE avant et après une relance — pas simplement l'absence d'erreur. Documente ce test dans ton dépôt final : \"exécuté deux fois, le compte reste à N lignes\" est une phrase bien plus convaincante en entretien qu'une simple affirmation.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Peux-tu expliquer, sans regarder le code, pourquoi ON CONFLICT (transaction_id) DO UPDATE garantit cette propriété ? Si la réponse ne vient pas immédiatement, c'est le signal de retourner brièvement au Chapitre 2.5.9 avant de continuer.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle est la vraie preuve qu'un chargement est idempotent ?",
+          options: [
+            "L'absence d'erreur lors de l'exécution",
+            "Un compte de lignes identique avant et après une relance du même chargement",
+            "Le temps d'exécution qui diminue à chaque relance"
+          ],
+          correct_index: 1,
+          explain: "L'absence d'erreur ne prouve rien sur la duplication éventuelle — seul le compte de lignes le confirme.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.5",
+      slug: "etape-4-ajouter-tests-qualite",
+      title: "Étape 4 : ajouter les tests de qualité",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 25,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Quatrième livrable : au moins un test de qualité automatisé par risque identifié — en SQL pur (comme au Chapitre 2.7) ou via dbt (Chapitre 2.9), selon l'outillage choisi pour ton projet.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Écris (en SQL pur) l'équivalent du test dbt 'unique' pour transaction_id.",
+            starterQuery:
+              "select transaction_id, count(*) as occurrences\nfrom fact_transactions\ngroup by transaction_id\nhaving count(*) > 1;\n-- Un test 'unique' réussit si cette requête renvoie ZÉRO ligne",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Écris l'équivalent du test dbt 'relationships' pour merchant_id.",
+            starterQuery:
+              "select t.transaction_id, t.merchant_id\nfrom fact_transactions t\nleft join dim_merchant m on m.merchant_id = t.merchant_id\nwhere m.merchant_id is null;\n-- Un test 'relationships' réussit si cette requête renvoie ZÉRO ligne",
+          },
+          {
+            type: "callout",
+            title: "Un test qui ne s'exécute jamais automatiquement n'est pas un vrai test",
+            text: "Une requête de vérification exécutée manuellement une fois n'a que la valeur du jour où elle a été lancée. Pour un vrai livrable de production, documente comment CE test serait exécuté systématiquement (un script cron, un `dbt test`, une étape CI) — même si tu ne mets pas nécessairement en place l'automatisation complète dans le cadre du capstone.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle est la différence entre une requête de vérification manuelle et un vrai test de qualité de données ?",
+          options: [
+            "Aucune différence réelle",
+            "Un vrai test s'exécute systématiquement (automatisé), pas seulement une fois manuellement",
+            "Un test doit toujours être écrit en dbt, jamais en SQL pur"
+          ],
+          correct_index: 1,
+          explain: "La requête SQL peut être identique — c'est l'automatisation systématique qui transforme une vérification ponctuelle en un vrai test.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.6",
+      slug: "etape-5-indexer-verifier-performance",
+      title: "Étape 5 : indexer et vérifier la performance des requêtes clés",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Cinquième livrable : identifier les 2-3 requêtes les plus fréquentes de ton data mart final (Leçon 2.10.7), et prouver — via EXPLAIN ANALYZE, Chapitre 2.8 — qu'elles sont correctement optimisées.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Observe le plan d'exécution d'une requête de reporting fréquente, avant d'ajouter un index dessus.",
+            starterQuery:
+              "explain analyze\nselect country_code, count(*), sum(amount_local)\nfrom fact_transactions\nwhere status = 'completed'\ngroup by country_code;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Crée un index partiel ciblé sur les transactions complétées, puis observe si le plan change.",
+            starterQuery:
+              "create index if not exists idx_transactions_completed on fact_transactions(country_code) where status = 'completed';\n\nexplain analyze\nselect country_code, count(*), sum(amount_local)\nfrom fact_transactions\nwhere status = 'completed'\ngroup by country_code;",
+          },
+          {
+            type: "callout",
+            title: "Documente le AVANT/APRÈS, pas juste l'index final",
+            text: "En entretien, montrer le plan EXPLAIN ANALYZE avant ET après un changement d'index démontre une vraie démarche d'optimisation basée sur des preuves — bien plus convaincant que de simplement lister les index créés sans justification mesurée.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que doit démontrer la partie \"performance\" du capstone, au-delà de la simple création d'index ?",
+          options: [
+            "Le nombre total d'index créés",
+            "Une comparaison AVANT/APRÈS via EXPLAIN ANALYZE, prouvant l'effet réel du changement",
+            "Rien de particulier, la création suffit"
+          ],
+          correct_index: 1,
+          explain: "C'est la preuve mesurée qui distingue une vraie démarche d'optimisation d'une simple liste d'index.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.7",
+      slug: "etape-6-construire-data-mart-final",
+      title: "Étape 6 : construire le data mart final",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 25,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Sixième livrable : LE tableau de bord final — une requête qui combine tout ce que tu as appris (jointures, as-of join, agrégats) pour répondre à une vraie question business AfriPay.",
+          },
           {
             type: "sql_code",
             text: "-- Le tableau de bord final : revenu par pays, en USD, avec le taux du bon jour\nwith conversion as (\n  select t.*, fx.rate_to_usd,\n    round(t.amount_local / fx.rate_to_usd, 2) as amount_usd\n  from fact_transactions t\n  join lateral (\n    select rate_to_usd from fx_rates\n    where fx_rates.currency_code = t.currency_code and fx_rates.rate_date <= t.transaction_at::date\n    order by rate_date desc limit 1\n  ) fx on true\n  where t.status = 'completed'\n)\nselect co.country_name,\n  count(*) as nb_transactions,\n  round(sum(amount_usd), 2) as revenu_usd,\n  round(avg(amount_usd), 2) as panier_moyen_usd\nfrom conversion c\njoin dim_country co on co.country_code = c.country_code\ngroup by co.country_name\norder by revenu_usd desc;",
           },
-          { type: "h3", text: "Documentation et structure du dépôt" },
+          {
+            type: "callout",
+            title: "Pourquoi cette seule requête résume tout le module",
+            text: "Elle utilise un LATERAL JOIN pour un as-of join (Chapitre 2.4), une jointure vers une dimension (Chapitre 2.3), un filtre sur le statut (Chapitre 2.2), et un GROUP BY avec agrégats (Chapitre 2.2) — le tout construit sur un modèle Gold vérifié (Chapitre 2.6) et alimenté par un pipeline idempotent (Chapitre 2.7). Une seule requête, tout un module.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Étends le data mart : ajoute la ventilation par canal de paiement en plus du pays.",
+            starterQuery:
+              "with conversion as (\n  select t.*, fx.rate_to_usd,\n    round(t.amount_local / fx.rate_to_usd, 2) as amount_usd\n  from fact_transactions t\n  join lateral (\n    select rate_to_usd from fx_rates\n    where fx_rates.currency_code = t.currency_code and fx_rates.rate_date <= t.transaction_at::date\n    order by rate_date desc limit 1\n  ) fx on true\n  where t.status = 'completed'\n)\nselect co.country_name, c.channel,\n  count(*) as nb_transactions,\n  round(sum(amount_usd), 2) as revenu_usd\nfrom conversion c\njoin dim_country co on co.country_code = c.country_code\ngroup by co.country_name, c.channel\norder by co.country_name, revenu_usd desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Dans le data mart final, pourquoi utilise-t-on un as-of join sur fx_rates avant d'agréger le revenu ?",
+          options: [
+            "Ce n'est pas nécessaire",
+            "Pour convertir chaque transaction au taux de change en vigueur à SA date, pas au taux du jour",
+            "Pour trier les résultats"
+          ],
+          correct_index: 1,
+          explain: "Sans as-of join, tout l'historique de revenu serait faussé par le taux de change actuel appliqué rétroactivement.",
+        },
+        {
+          question: "Combien de compétences distinctes du module la requête finale du data mart combine-t-elle ?",
+          options: [
+            "Une seule (l'agrégation)",
+            "Plusieurs : LATERAL/as-of join, jointure de dimension, filtrage, GROUP BY sur un modèle Gold vérifié",
+            "Aucune, c'est une requête triviale"
+          ],
+          correct_index: 1,
+          explain: "C'est précisément ce qui en fait une bonne synthèse : elle mobilise des concepts de presque tous les chapitres précédents.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.8",
+      slug: "etape-7-documenter-projet-readme",
+      title: "Étape 7 : documenter le projet (structure du dépôt, README)",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 20,
+      sort_order: 8,
+      body_content: {
+        blocks: [
           {
             type: "code",
             text: "afripay-data-platform/\n├── README.md\n├── sql/\n│   ├── ddl/              -- création des tables\n│   ├── modeling/         -- MCD, MLD, star schema\n│   └── optimization/     -- index, requêtes EXPLAIN avant/après\n├── warehouse/\n│   ├── bronze/\n│   ├── silver/\n│   └── gold/\n├── dbt/\n│   ├── models/\n│   └── tests/\n└── documentation/\n    └── architecture.png",
           },
           {
-            type: "p",
-            text: "Un recruteur qui ouvre ce dépôt doit comprendre en cinq minutes ce que fait le projet, pourquoi ces choix de modélisation, et voir que le pipeline a été pensé pour la production — pas juste pour \"marcher une fois\".",
+            type: "callout",
+            title: "Un recruteur lit un README en cinq minutes maximum",
+            text: "Un recruteur qui ouvre ce dépôt doit comprendre en cinq minutes ce que fait le projet, pourquoi ces choix de modélisation, et voir que le pipeline a été pensé pour la production — pas juste pour \"marcher une fois\". Un README qui ne répond pas à \"pourquoi ce projet existe\" en trois phrases perd déjà l'attention.",
           },
-          { type: "h3", text: "Restitution" },
+          {
+            type: "checklist",
+            title: "Ce qu'un bon README AfriPay Data Platform doit contenir",
+            items: [
+              "En 2-3 phrases : le problème métier résolu (pas une liste de technologies utilisées)",
+              "Un schéma ou une description du star schema Gold",
+              "Comment relancer le pipeline localement (commandes exactes)",
+              "Les décisions de modélisation clés et leur justification (star schema vs OBT, SCD choisie...)",
+              "Ce qui a été laissé de côté volontairement, et pourquoi (périmètre assumé, pas oublié)",
+            ],
+          },
+          {
+            type: "thinking_prompt",
+            text: "\"Ce qui a été laissé de côté et pourquoi\" est souvent la section la plus impressionnante d'un README technique — elle démontre une conscience claire du périmètre du projet, exactement l'attitude qu'un employeur recherche chez un data engineer junior.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle information un bon README doit-il donner en priorité ?",
+          options: [
+            "La liste exhaustive de toutes les technologies utilisées",
+            "Le problème métier résolu, en 2-3 phrases claires",
+            "Le nombre total de lignes de code du projet"
+          ],
+          correct_index: 1,
+          explain: "Un recruteur doit comprendre le POURQUOI du projet avant tout détail technique.",
+        },
+        {
+          question: "Pourquoi documenter explicitement \"ce qui a été laissé de côté\" dans le README ?",
+          options: [
+            "Ça n'a aucun intérêt et affaiblit le projet",
+            "Ça démontre une conscience claire et assumée du périmètre du projet",
+            "C'est une obligation légale"
+          ],
+          correct_index: 1,
+          explain: "Un périmètre assumé et documenté est perçu très différemment d'un oubli non mentionné.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.9",
+      slug: "etape-8-preparer-restitution-orale",
+      title: "Étape 8 : préparer la restitution orale",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 25,
+      sort_order: 9,
+      body_content: {
+        blocks: [
           {
             type: "p",
-            text: "Présente ton projet comme en entretien technique : le problème métier, le modèle choisi et pourquoi, une requête qui t'a posé un vrai défi, et ce que tu ferais différemment avec plus de temps. C'est cette dernière question qui distingue un candidat qui a suivi un tutoriel d'un candidat qui a vraiment compris.",
+            text: "Présente ton projet comme en entretien technique : le problème métier, le modèle choisi et pourquoi, une requête qui t'a posé un vrai défi, et ce que tu ferais différemment avec plus de temps.",
+          },
+          {
+            type: "table",
+            headers: ["Partie du pitch", "Ce qu'elle doit couvrir", "Durée indicative"],
+            rows: [
+              ["Le problème", "Quelle question métier AfriPay ce projet résout-il ?", "30 secondes"],
+              ["Le modèle", "Star schema choisi, grain de fact_transactions, pourquoi ce choix plutôt qu'un autre", "1-2 minutes"],
+              ["Le défi technique", "Une requête ou une décision qui n'était pas évidente (ex. l'as-of join, un piège NULL rencontré)", "1-2 minutes"],
+              ["Les limites assumées", "Ce que tu ferais différemment avec plus de temps ou plus de données", "30 secondes à 1 minute"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "La dernière question distingue un candidat qui a compris d'un candidat qui a suivi un tutoriel",
+            text: "\"Qu'est-ce que tu ferais différemment avec plus de temps ?\" est une question fréquente en entretien technique. Un candidat qui a simplement suivi des instructions n'a pas de réponse construite ; un candidat qui a vraiment compris les compromis de son propre modèle (star vs OBT, SCD choisie, index posés) a toujours quelque chose de précis à répondre.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Entraîne-toi à répondre à \"pourquoi un star schema plutôt qu'un OBT ici précisément\" sans relire tes notes — si la réponse ne vient pas naturellement, c'est le signal de retourner brièvement à la Leçon 2.6.7 avant l'entretien réel.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi la question \"qu'est-ce que tu ferais différemment avec plus de temps ?\" est-elle si révélatrice en entretien ?",
+          options: [
+            "Elle n'a aucune importance particulière",
+            "Elle distingue un candidat qui a vraiment compris les compromis de son projet d'un candidat qui a suivi des instructions",
+            "C'est une question piège sans bonne réponse"
+          ],
+          correct_index: 1,
+          explain: "Une réponse précise démontre une compréhension réelle des choix de modélisation et de leurs compromis.",
+        },
+      ],
+    },
+
+    {
+      number: "2.10.10",
+      slug: "revue-finale-quiz-validation-module",
+      title: "Revue finale complète et quiz de validation du module",
+      parentSlug: "capstone-afripay-data-platform",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Dix chapitres, une centaine de leçons, un seul projet qui a grandi du premier SELECT jusqu'à une plateforme de données complète. Cette dernière leçon fait le lien final avant le quiz de validation du module.",
+          },
+          {
+            type: "checklist",
+            title: "Le parcours complet du Module 02, chapitre par chapitre",
+            items: [
+              "2.1 — Environnement PostgreSQL et contexte du fil rouge AfriPay",
+              "2.2 — SQL Foundations : SELECT à HAVING, en comprenant l'ordre logique d'exécution",
+              "2.3 — Joins, ensembles, sous-requêtes, CTEs",
+              "2.4 — Window functions, cumuls, détection d'anomalies, as-of join",
+              "2.5 — SQL avancé : transactions, vues, CTE récursive, upsert, fuseaux horaires",
+              "2.6 — Modélisation dimensionnelle complète : star schema, grain, SCD",
+              "2.7 — Pipeline Bronze/Silver/Gold, idempotence, data quality",
+              "2.8 — Index, EXPLAIN ANALYZE, partitionnement, anti-patterns",
+              "2.9 — dbt et le concept d'orchestration",
+              "2.10 — La consolidation en un seul projet défendable en entretien",
+            ],
+          },
+          {
+            type: "callout",
+            title: "Ce module se termine, le fil rouge AfriPay continue",
+            text: "AfriPay ne disparaît pas à la fin de ce module — le Module 03 l'ingère en temps réel, un module ultérieur la traite à l'échelle avec Spark, un autre la migre en lakehouse. Le star schema que tu as vérifié en 2.10.2 devient la fondation de tout ce qui suit dans le bootcamp.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Dernière requête du module — reconstitue le tableau de bord complet une dernière fois, comme preuve finale de maîtrise.",
+            starterQuery:
+              "with conversion as (\n  select t.*, fx.rate_to_usd,\n    round(t.amount_local / fx.rate_to_usd, 2) as amount_usd\n  from fact_transactions t\n  join lateral (\n    select rate_to_usd from fx_rates\n    where fx_rates.currency_code = t.currency_code and fx_rates.rate_date <= t.transaction_at::date\n    order by rate_date desc limit 1\n  ) fx on true\n  where t.status = 'completed'\n)\nselect co.country_name, count(*) as nb_transactions, round(sum(amount_usd), 2) as revenu_usd\nfrom conversion c\njoin dim_country co on co.country_code = c.country_code\ngroup by co.country_name\norder by revenu_usd desc;",
+          },
+          {
+            type: "p",
+            text: "Le quiz final du module (20 questions, ci-dessous) couvre l'ensemble des dix chapitres — 80% de réussite débloquent ton certificat du Module 02.",
           },
         ],
       },
@@ -6449,14 +6948,14 @@ async function main() {
           explain: "La documentation et la structure comptent autant que le SQL lui-même en entretien.",
         },
         {
-          question: "Dans le data mart final, pourquoi utilise-t-on un as-of join sur fx_rates avant d'agréger le revenu ?",
+          question: "Que devient le jeu de données AfriPay après ce module ?",
           options: [
-            "Ce n'est pas nécessaire",
-            "Pour convertir chaque transaction au taux de change en vigueur à SA date, pas au taux du jour",
-            "Pour trier les résultats"
+            "Il n'est plus jamais utilisé dans le bootcamp",
+            "Il continue d'être le fil rouge des modules suivants (ingestion temps réel, Spark, lakehouse)",
+            "Il est remplacé par un nouveau jeu de données à chaque module"
           ],
           correct_index: 1,
-          explain: "Sans as-of join, tout l'historique de revenu serait faussé par le taux de change actuel appliqué rétroactivement.",
+          explain: "Le star schema construit ici devient la fondation réutilisée par les modules suivants du bootcamp.",
         },
       ],
     },
