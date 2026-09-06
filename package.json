@@ -7,15 +7,19 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:module1": "tsx supabase/seed/seed-module-1.ts"
+    "seed:module1": "tsx supabase/seed/seed-module-1.ts",
+    "generate:sandbox": "tsx scripts/generate-afripay-seed.ts"
   },
   "dependencies": {
+    "@codemirror/lang-sql": "^6.10.0",
+    "@electric-sql/pglite": "^0.5.8",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
     "@tiptap/extension-image": "^3.30.6",
     "@tiptap/extension-link": "^3.30.6",
     "@tiptap/react": "^3.30.6",
     "@tiptap/starter-kit": "^3.30.6",
+    "@uiw/react-codemirror": "^4.25.11",
     "html-to-image": "^1.11.13",
     "next": "16.3.3",
     "qrcode": "^1.5.4",

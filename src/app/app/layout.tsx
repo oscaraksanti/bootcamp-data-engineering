@@ -34,6 +34,9 @@ export default async function AppLayout({
           <LogoMark />
           DataLendo
         </Link>
+        <Link href="/app/sandbox" className="text-[13.5px] text-ink-soft hover:text-ink">
+          Bac à sable SQL
+        </Link>
         <div className="ml-auto flex items-center gap-4">
           <span className="flex items-center gap-1.5 font-mono text-xs text-ink-soft">
             <FlameIcon />

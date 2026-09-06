@@ -126,6 +126,20 @@ export function CaseStudy({
   );
 }
 
+export function ThinkingPrompt({ text }: { text: string }) {
+  return (
+    <div className="my-5 flex gap-3 border border-amber-soft bg-amber-soft rounded-xl px-4 py-3.5">
+      <span className="text-lg leading-none flex-none">🧠</span>
+      <p className="text-[13.5px] text-ink-soft italic leading-relaxed">
+        <span className="not-italic font-mono text-[10.5px] uppercase tracking-wide text-amber mr-2">
+          Data Engineering Thinking
+        </span>
+        {text}
+      </p>
+    </div>
+  );
+}
+
 export function ModuleRoadmap({
   modules,
 }: {

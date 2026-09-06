@@ -13,9 +13,13 @@ import {
   ModuleRoadmap,
   RoleCards,
   StatGrid,
+  ThinkingPrompt,
   Timeline,
   ToolsGrid,
 } from "@/components/lesson/RichBlocks";
+import { SqlCode } from "@/components/lesson/SqlCode";
+import { SqlSandbox } from "@/components/lesson/SqlSandbox";
+import { SandboxProvider } from "@/components/lesson/SandboxProvider";
 
 export function LessonBody({
   content,
@@ -24,7 +28,9 @@ export function LessonBody({
   content: LessonBodyContent;
   bodyHtml?: string | null;
 }) {
-  return (
+  const needsSandbox = content.blocks.some((b) => b.type === "sql_sandbox");
+
+  const body = (
     <div className="flex flex-col">
       {bodyHtml && (
         <div
@@ -38,6 +44,8 @@ export function LessonBody({
       ))}
     </div>
   );
+
+  return needsSandbox ? <SandboxProvider>{body}</SandboxProvider> : body;
 }
 
 function Block({ block }: { block: LessonBlock }) {
@@ -172,6 +180,15 @@ function Block({ block }: { block: LessonBlock }) {
 
     case "module_roadmap":
       return <ModuleRoadmap modules={block.modules} />;
+
+    case "thinking_prompt":
+      return <ThinkingPrompt text={block.text} />;
+
+    case "sql_code":
+      return <SqlCode text={block.text} caption={block.caption} />;
+
+    case "sql_sandbox":
+      return <SqlSandbox prompt={block.prompt} starterQuery={block.starterQuery} />;
 
     default:
       return null;

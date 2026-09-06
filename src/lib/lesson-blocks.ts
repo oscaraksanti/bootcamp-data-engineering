@@ -67,7 +67,10 @@ export type LessonBlock =
   | {
       type: "module_roadmap";
       modules: { number: number; title: string; note: string }[];
-    };
+    }
+  | { type: "thinking_prompt"; text: string }
+  | { type: "sql_code"; text: string; caption?: string }
+  | { type: "sql_sandbox"; prompt: string; starterQuery?: string };
 
 export interface LessonBodyContent {
   blocks: LessonBlock[];
