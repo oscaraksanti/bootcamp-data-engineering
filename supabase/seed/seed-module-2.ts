@@ -912,201 +912,1134 @@ async function main() {
     },
 
     // ============================================================
-    // 2.2 — SQL FOUNDATIONS
+    // CHAPITRE 2.2 — SQL FOUNDATIONS
     // ============================================================
     {
       number: "2.2",
       slug: "sql-foundations-pour-data-engineers",
       title: "SQL Foundations pour Data Engineers",
-      duration_minutes: 240,
+      duration_minutes: 15,
       sort_order: 2,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Tu connais peut-être déjà SELECT/WHERE/GROUP BY. Cette leçon ne les traite pas comme des bases isolées — elle les traite comme les bases seront traitées toute ta carrière : avec l'œil d'un data engineer qui pense en volumes, pas en lignes.",
-          },
-          { type: "h3", text: "SELECT, FROM, WHERE, ORDER BY, LIMIT, DISTINCT" },
-          {
-            type: "sql_code",
-            text: "-- Les 500 transactions les plus récentes au Kenya\nselect transaction_id, transaction_at, amount_local, channel\nfrom fact_transactions\nwhere country_code = 'KE'\norder by transaction_at desc\nlimit 500;",
+            text: "Tu connais peut-être déjà SELECT/WHERE/GROUP BY. Ce chapitre ne les traite pas comme des bases isolées — il les traite comme elles seront traitées toute ta carrière : avec l'œil d'un data engineer qui pense en volumes, pas en lignes, et qui sait exactement ce que le moteur fait à chaque mot-clé.",
           },
           {
-            type: "p",
-            text: "DISTINCT dédoublonne — mais il recalcule un tri interne sur toutes les colonnes sélectionnées à chaque exécution. Sur une table de quelques milliers de lignes, invisible. Sur des dizaines de millions, un DISTINCT mal placé peut multiplier le temps d'exécution par dix.",
-          },
-          {
-            type: "sql_code",
-            text: "-- Quels canaux de paiement existent réellement dans les données ?\nselect distinct channel from fact_transactions;",
-          },
-          { type: "h3", text: "Types de données, dont JSONB" },
-          {
-            type: "p",
-            text: "fact_transactions.channel_metadata est une colonne JSONB — chaque transaction mobile money y stocke l'opérateur (Orange Money, M-Pesa, MTN MoMo...) et le système d'exploitation, sans avoir besoin d'une colonne dédiée par opérateur.",
-          },
-          {
-            type: "sql_code",
-            text: "-- Extraire un champ JSON avec l'opérateur ->> (retourne du texte)\nselect transaction_id, channel_metadata->>'operator' as operator\nfrom fact_transactions\nwhere channel = 'mobile_money'\nlimit 10;",
-          },
-          { type: "h3", text: "Filtrage avancé" },
-          {
-            type: "list",
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
             items: [
-              "IN / NOT IN — appartenance à une liste",
-              "BETWEEN — un intervalle inclusif",
-              "LIKE / ILIKE — correspondance de motif (ILIKE ignore la casse)",
-              "IS NULL / IS NOT NULL — jamais = NULL, qui ne renvoie jamais vrai",
+              "2.2.1 — SELECT / FROM : anatomie d'une requête et ordre logique d'exécution",
+              "2.2.2 — Types de données PostgreSQL",
+              "2.2.3 — WHERE : opérateurs de comparaison, AND/OR/NOT",
+              "2.2.4 — Filtrage avancé : IN, BETWEEN, LIKE/ILIKE, IS NULL",
+              "2.2.5 — ORDER BY, LIMIT, OFFSET, DISTINCT",
+              "2.2.6 — CASE WHEN, COALESCE, NULLIF",
+              "2.2.7 — NULL et la logique à trois valeurs : le piège NOT IN",
+              "2.2.8 — JSONB en pratique",
+              "2.2.9 — GROUP BY et les fonctions d'agrégation",
+              "2.2.10 — HAVING et atelier de synthèse du chapitre",
+            ],
+          },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.2.1",
+      slug: "select-from-anatomie-requete",
+      title: "SELECT / FROM : anatomie d'une requête et ordre logique d'exécution",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une requête SQL s'écrit dans un ordre, mais le moteur ne l'exécute PAS dans cet ordre. Comprendre la différence entre ordre d'écriture et ordre logique d'exécution explique la moitié des erreurs de débutant (\"pourquoi je ne peux pas utiliser cet alias ici ?\").",
+          },
+          {
+            type: "table",
+            headers: ["Ordre d'écriture", "Ordre logique d'exécution réel"],
+            rows: [
+              ["1. SELECT", "1. FROM (et les JOIN)"],
+              ["2. FROM", "2. WHERE"],
+              ["3. WHERE", "3. GROUP BY"],
+              ["4. GROUP BY", "4. HAVING"],
+              ["5. HAVING", "5. SELECT (les alias sont créés ICI)"],
+              ["6. ORDER BY", "6. ORDER BY (peut utiliser les alias du SELECT)"],
+              ["7. LIMIT", "7. LIMIT"],
             ],
           },
           {
-            type: "sql_code",
-            text: "select * from dim_merchant\nwhere category in ('Alimentation', 'Transport')\n  and merchant_name ilike '%marché%';",
+            type: "callout",
+            title: "Ce que ça explique concrètement",
+            text: "C'est pour ça qu'un alias défini dans SELECT (ex. `count(*) as nb`) est utilisable dans ORDER BY mais jamais dans WHERE : au moment où WHERE s'exécute, SELECT n'a pas encore été évalué. Et c'est pour ça que HAVING peut filtrer sur un agrégat alors que WHERE ne le peut pas — HAVING s'exécute après GROUP BY, WHERE avant.",
           },
-          { type: "h3", text: "CASE, et le piège du NULL en logique à trois valeurs" },
+          {
+            type: "sql_code",
+            text: "-- Anatomie complète d'une requête sur AfriPay\nselect country_code, count(*) as nb_transactions          -- 5. calculé après le filtrage\nfrom fact_transactions                                     -- 1. la source\nwhere status = 'completed'                                 -- 2. filtre ligne par ligne, avant regroupement\ngroup by country_code                                      -- 3. regroupe\nhaving count(*) > 100                                      -- 4. filtre les groupes\norder by nb_transactions desc                              -- 6. peut utiliser l'alias nb_transactions\nlimit 5;                                                   -- 7. dernière étape",
+          },
+          {
+            type: "sql_code",
+            text: "-- ❌ Erreur : \"nb_transactions\" n'existe pas encore quand WHERE s'exécute\n-- select country_code, count(*) as nb_transactions\n-- from fact_transactions\n-- where nb_transactions > 100  -- WHERE ne connaît pas les alias du SELECT\n-- group by country_code;",
+          },
+          { type: "h3", text: "Qualifier ses colonnes dès le premier jour" },
           {
             type: "p",
-            text: "COALESCE renvoie la première valeur non nulle d'une liste ; NULLIF renvoie NULL si deux valeurs sont égales. Utiles — mais le vrai piège n'est pas là. Il est dans NOT IN.",
-          },
-          {
-            type: "callout",
-            title: "🪤 Le piège du NULL — testé sur nos vraies données",
-            text: "raw_transactions_bronze.customer_id contient quelques valeurs NULL (extraction imparfaite, volontairement). La requête ci-dessous semble raisonnable : trouver les clients qui n'apparaissent jamais dans cette extraction. En SQL, dès qu'un NULL se glisse dans la liste de NOT IN, la comparaison devient indéterminée pour CHAQUE ligne — et la requête ne renvoie plus jamais rien, silencieusement.",
+            text: "Dès qu'une requête touche plus d'une table, préfixer chaque colonne par sa table (ou un alias court) lève toute ambiguïté et rend la requête lisible sans avoir à deviner d'où vient chaque champ.",
           },
           {
             type: "sql_code",
-            text: "-- ⚠ Renvoie TOUJOURS zéro ligne à cause des NULL dans la sous-requête\nselect * from dim_customer\nwhere customer_id not in (select customer_id::int from raw_transactions_bronze);\n\n-- ✅ La version correcte : NOT EXISTS ignore proprement les NULL\nselect c.* from dim_customer c\nwhere not exists (\n  select 1 from raw_transactions_bronze b\n  where b.customer_id is not null and b.customer_id::int = c.customer_id\n);",
+            text: "select t.transaction_id, t.amount_local, c.full_name\nfrom fact_transactions t\njoin dim_customer c on c.customer_id = t.customer_id\nlimit 10;",
           },
           {
             type: "sql_sandbox",
             prompt:
-              "Exécute d'abord la version NOT IN (elle renverra 0 ligne), puis la version NOT EXISTS. Compare.",
+              "Écris une requête qui liste les transactions du canal 'mobile_money', triées par montant décroissant, en gardant seulement les 10 premières.",
             starterQuery:
-              "select count(*) from dim_customer\nwhere customer_id not in (select customer_id::int from raw_transactions_bronze);",
-          },
-          { type: "h3", text: "Agrégats : GROUP BY et HAVING" },
-          {
-            type: "sql_code",
-            text: "-- Pays où le volume de transactions dépasse 500\nselect country_code, count(*) as nb_transactions, sum(amount_local) as volume\nfrom fact_transactions\ngroup by country_code\nhaving count(*) > 500\norder by nb_transactions desc;",
-          },
-          {
-            type: "thinking_prompt",
-            text: "Cette requête retourne le bon résultat sur 5 000 lignes en quelques millisecondes — mais tiendrait-elle avec 50 millions de lignes ? WHERE filtre avant l'agrégation (donc sur les lignes brutes), HAVING filtre après (sur les groupes) : intervertir les deux par erreur peut faire scanner des dizaines de fois plus de données que nécessaire.",
-          },
-          {
-            type: "sql_sandbox",
-            prompt:
-              "Atelier — pour chaque canal de paiement, calcule le nombre de transactions et le montant moyen. Garde uniquement les canaux avec plus de 1000 transactions.",
-            starterQuery: "select channel, count(*), avg(amount_local)\nfrom fact_transactions\ngroup by channel;",
+              "select transaction_id, amount_local, channel\nfrom fact_transactions\nwhere channel = 'mobile_money'\norder by amount_local desc\nlimit 10;",
           },
         ],
       },
       quiz: [
         {
-          question: "Que renvoie `NOT IN` dès qu'un NULL se trouve dans sa liste de comparaison ?",
-          options: ["Une erreur", "Toujours zéro ligne pour la requête entière", "Il ignore simplement le NULL"],
+          question: "Un alias défini dans le SELECT (ex. `count(*) as nb`) peut être utilisé dans :",
+          options: ["WHERE", "ORDER BY", "Les deux"],
           correct_index: 1,
-          explain: "La logique à trois valeurs de SQL rend la comparaison indéterminée pour toutes les lignes — utilise NOT EXISTS ou filtre explicitement les NULL.",
+          explain: "SELECT s'exécute logiquement avant ORDER BY mais après WHERE — d'où la différence.",
         },
         {
-          question: "Quel opérateur extrait un champ d'une colonne JSONB sous forme de texte ?",
-          options: ["->", "->>","::json"],
+          question: "Quelle est la toute première étape de l'exécution logique d'une requête SELECT ... FROM ... WHERE ... ?",
+          options: ["SELECT", "FROM", "WHERE"],
           correct_index: 1,
-          explain: "-> renvoie du JSON, ->> renvoie du texte directement utilisable.",
-        },
-        {
-          question: "HAVING filtre :",
-          options: ["Les lignes, avant l'agrégation", "Les groupes, après l'agrégation", "Rien, c'est un synonyme de WHERE"],
-          correct_index: 1,
-          explain: "WHERE s'applique avant GROUP BY, HAVING après.",
-        },
-        {
-          question: "ILIKE se distingue de LIKE par :",
-          options: ["Il est insensible à la casse", "Il est plus rapide", "Il n'accepte pas les % "],
-          correct_index: 0,
-          explain: "ILIKE est l'équivalent insensible à la casse de LIKE, spécifique à PostgreSQL.",
+          explain: "Le moteur détermine d'abord la source des données (FROM/JOIN) avant de filtrer ou de projeter des colonnes.",
         },
       ],
     },
 
-    // ============================================================
-    // 2.3 — JOINS, ENSEMBLES, SOUS-REQUÊTES, CTEs
-    // ============================================================
     {
-      number: "2.3",
-      slug: "joins-ensembles-sous-requetes-ctes",
-      title: "Joins, ensembles, sous-requêtes, CTEs",
-      duration_minutes: 300,
+      number: "2.2.2",
+      slug: "types-de-donnees-postgresql",
+      title: "Types de données PostgreSQL",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Choisir le bon type de colonne n'est pas un détail cosmétique : ça détermine l'espace de stockage, la vitesse des comparaisons, et surtout ce qui est possible de garantir automatiquement par le moteur (pas de texte dans une colonne numérique, pas de date invalide).",
+          },
+          {
+            type: "table",
+            headers: ["Type", "Exemple AfriPay", "Remarque"],
+            rows: [
+              ["integer / serial", "customer_id, merchant_id", "serial génère automatiquement une séquence auto-incrémentée pour les clés primaires"],
+              ["numeric(p,s)", "amount_local", "Précision exacte — jamais d'arrondi flottant surprenant sur de l'argent, contrairement à float"],
+              ["text / varchar", "full_name, merchant_name", "PostgreSQL ne pénalise pas text par rapport à varchar(n) — text est le choix par défaut recommandé"],
+              ["boolean", "is_current (SCD)", "true/false/null — trois états possibles, pas deux"],
+              ["date", "signup_date, onboarded_date", "Une date calendaire, sans heure"],
+              ["timestamptz", "transaction_at", "Un instant absolu avec fuseau — toujours préférer à timestamp (sans fuseau) pour un système multi-pays"],
+              ["jsonb", "channel_metadata", "JSON stocké en binaire, indexable et interrogeable directement en SQL"],
+              ["uuid", "public_slug des certificats", "Identifiant globalement unique, imprévisible — utile pour des identifiants exposés publiquement"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi jamais `float` pour de l'argent",
+            text: "Un float (réel en virgule flottante) ne peut pas représenter exactement la plupart des valeurs décimales — 0.1 + 0.2 ne vaut pas exactement 0.3 en binaire. Sur un système financier comme AfriPay, cette imprécision s'accumule. `numeric` garde une précision décimale exacte, au prix d'un calcul légèrement plus lent — un compromis toujours justifié pour de l'argent.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Démonstration de l'imprécision du flottant (à éviter pour de l'argent)\nselect 0.1::float + 0.2::float as approx, 0.1::numeric + 0.2::numeric as exact;",
+          },
+          { type: "h3", text: "Cast explicite avec ::" },
+          {
+            type: "sql_code",
+            text: "-- Convertir un texte en entier, une date en texte formaté\nselect '42'::int, transaction_at::date, amount_local::text\nfrom fact_transactions limit 5;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie le type réel de chaque colonne de fact_transactions via information_schema.",
+            starterQuery:
+              "select column_name, data_type\nfrom information_schema.columns\nwhere table_name = 'fact_transactions'\norder by ordinal_position;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi utiliser `numeric` plutôt que `float` pour stocker un montant d'argent ?",
+          options: [
+            "numeric est toujours plus rapide",
+            "float ne peut pas représenter exactement la plupart des valeurs décimales, ce qui cause des erreurs d'arrondi",
+            "float ne supporte pas les nombres négatifs",
+          ],
+          correct_index: 1,
+          explain: "numeric garde une précision décimale exacte — essentiel pour des montants financiers.",
+        },
+        {
+          question: "Pourquoi préférer `timestamptz` à `timestamp` pour transaction_at dans un système multi-pays comme AfriPay ?",
+          options: [
+            "timestamptz stocke un instant absolu, indépendant du fuseau, ce qui évite l'ambiguïté entre pays",
+            "timestamp n'existe pas en PostgreSQL",
+            "Ce n'est qu'une question de nommage, aucune différence réelle",
+          ],
+          correct_index: 0,
+          explain: "Avec 8 pays et 8 fuseaux horaires potentiels, un instant absolu non ambigu est indispensable.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.3",
+      slug: "where-comparaison-and-or-not",
+      title: "WHERE : opérateurs de comparaison, AND/OR/NOT",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 25,
       sort_order: 3,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Aucune donnée utile ne vit dans une seule table. Cette leçon est celle où AfriPay cesse d'être sept tables isolées pour devenir un système cohérent.",
+            text: "WHERE filtre les lignes une par une, avant tout regroupement. C'est l'outil le plus utilisé de tout SQL — et celui où une priorité d'opérateur mal comprise cause le plus de résultats silencieusement faux.",
           },
-          { type: "h3", text: "JOINs" },
           {
-            type: "list",
-            items: [
-              "INNER JOIN — seulement les lignes qui correspondent des deux côtés",
-              "LEFT JOIN — toutes les lignes de gauche, correspondance ou NULL à droite",
-              "RIGHT JOIN — l'inverse, rarement utilisé (on réécrit en LEFT JOIN en inversant les tables)",
-              "FULL JOIN — l'union des deux, correspondance ou non",
-              "CROSS JOIN — produit cartésien, chaque ligne de gauche avec chaque ligne de droite",
-              "SELF JOIN — une table jointe à elle-même (utile pour dim_agent, voir Leçon 2.5)",
+            type: "table",
+            headers: ["Opérateur", "Signification"],
+            rows: [
+              ["=, <>  (ou !=)", "Égal, différent"],
+              ["<, >, <=, >=", "Comparaisons numériques ou de dates"],
+              ["AND", "Les deux conditions doivent être vraies"],
+              ["OR", "Au moins une des deux conditions est vraie"],
+              ["NOT", "Inverse une condition"],
             ],
           },
           {
             type: "sql_code",
-            text: "-- Chaque transaction avec le nom du pays (INNER — country_code est toujours renseigné)\nselect t.transaction_id, c.country_name, t.amount_local\nfrom fact_transactions t\njoin dim_country c on c.country_code = t.country_code\nlimit 20;",
-          },
-          { type: "h3", text: "Cardinalité — pourquoi les lignes se multiplient" },
-          {
-            type: "p",
-            text: "Une jointure 1:N (un client, plusieurs transactions) multiplie les lignes du côté \"1\" par le nombre de correspondances. C'est voulu et attendu. Le problème survient quand une jointure censée être 1:1 devient accidentellement 1:N — parce qu'une clé qu'on pensait unique ne l'est pas.",
-          },
-          {
-            type: "sql_code",
-            text: "-- Vérifier qu'une jointure ne va pas dupliquer des lignes : compare avant/après\nselect count(*) from fact_transactions; -- ligne de référence\n\nselect count(*) from fact_transactions t\njoin dim_customer c on c.customer_id = t.customer_id; -- doit renvoyer le même nombre",
-          },
-          {
-            type: "thinking_prompt",
-            text: "Si le nombre de lignes explose après une jointure que tu pensais 1:1, qu'est-ce que ça révèle ? Presque toujours : la colonne de jointure n'est pas réellement une clé unique côté droit — une supposition sur le modèle de données vient d'être invalidée par les faits.",
-          },
-          { type: "h3", text: "Ensembles : UNION, INTERSECT, EXCEPT" },
-          {
-            type: "sql_code",
-            text: "-- Pays où AfriPay a des clients OU des marchands (UNION dédoublonne, UNION ALL non)\nselect country_code from dim_customer\nunion\nselect country_code from dim_merchant;\n\n-- Pays présents dans les deux (INTERSECT)\nselect country_code from dim_customer\nintersect\nselect country_code from dim_merchant;",
-          },
-          { type: "h3", text: "Sous-requêtes corrélées et non-corrélées" },
-          {
-            type: "sql_code",
-            text: "-- Non-corrélée : la sous-requête s'exécute une seule fois\nselect * from dim_merchant\nwhere country_code in (select country_code from dim_country where region = 'Afrique de l''Ouest');\n\n-- Corrélée : la sous-requête se ré-exécute pour chaque ligne externe, elle référence t\nselect m.merchant_name,\n  (select count(*) from fact_transactions t where t.merchant_id = m.merchant_id) as nb_transactions\nfrom dim_merchant m;",
-          },
-          { type: "h3", text: "CTEs (WITH)" },
-          {
-            type: "sql_code",
-            text: "with volume_par_pays as (\n  select country_code, sum(amount_local) as volume\n  from fact_transactions\n  group by country_code\n)\nselect c.country_name, v.volume\nfrom volume_par_pays v\njoin dim_country c on c.country_code = v.country_code\norder by v.volume desc;",
+            text: "-- Transactions complétées au Sénégal avec un montant significatif\nselect transaction_id, country_code, amount_local, status\nfrom fact_transactions\nwhere country_code = 'SN' and status = 'completed' and amount_local > 100;",
           },
           {
             type: "callout",
-            title: "Astuce avancée : LATERAL",
-            text: "Un LATERAL JOIN permet à une sous-requête de référencer les colonnes de la ligne en cours de la table de gauche — utile pour \"le top 3 de chaque groupe\" ou l'as-of join que tu verras en leçon 2.4. Retiens le nom, tu le reverras vite.",
+            title: "🪤 Le piège de priorité AND / OR",
+            text: "AND est évalué avant OR, exactement comme la multiplication avant l'addition en arithmétique. `where country_code = 'SN' or country_code = 'CI' and status = 'completed'` ne filtre PAS \"SN ou CI, tous deux complétés\" — elle filtre \"tout le Sénégal (peu importe le statut) OU la Côte d'Ivoire complétée\". Sans parenthèses explicites, l'intention réelle disparaît.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ⚠ Piège : AND est évalué avant OR — ceci inclut TOUT le Sénégal, complété ou non\nselect * from fact_transactions\nwhere country_code = 'SN' or country_code = 'CI' and status = 'completed';\n\n-- ✅ Version correcte et non ambiguë, avec des parenthèses explicites\nselect * from fact_transactions\nwhere (country_code = 'SN' or country_code = 'CI') and status = 'completed';",
+          },
+          {
+            type: "thinking_prompt",
+            text: "La règle pratique à retenir : dès qu'une requête mélange AND et OR, ajoute des parenthèses — même quand tu es sûr de la priorité. Un futur lecteur (ou toi dans six mois) ne devrait jamais avoir à recalculer mentalement les règles de précédence.",
           },
           {
             type: "sql_sandbox",
             prompt:
-              "Atelier — reconstitue la vue 360° d'un client AfriPay : son nom, son pays, le nombre total de ses transactions et le montant total dépensé. Commence par le client 1.",
+              "Corrige le piège : liste les transactions du Kenya OU du Maroc qui sont toutes les deux à l'état 'completed'.",
             starterQuery:
-              "select c.full_name, co.country_name,\n  count(t.transaction_id) as nb_transactions,\n  coalesce(sum(t.amount_local), 0) as total_depense\nfrom dim_customer c\njoin dim_country co on co.country_code = c.country_code\nleft join fact_transactions t on t.customer_id = c.customer_id\nwhere c.customer_id = 1\ngroup by c.full_name, co.country_name;",
+              "select * from fact_transactions\nwhere (country_code = 'KE' or country_code = 'MA') and status = 'completed';",
           },
         ],
       },
       quiz: [
         {
-          question: "Quel type de jointure garde toutes les lignes de la table de gauche, même sans correspondance ?",
-          options: ["INNER JOIN", "LEFT JOIN", "CROSS JOIN"],
+          question: "Entre AND et OR, lequel est évalué en premier en l'absence de parenthèses ?",
+          options: ["OR", "AND", "Ils ont la même priorité"],
           correct_index: 1,
-          explain: "LEFT JOIN complète avec NULL les colonnes de droite quand il n'y a pas de correspondance.",
+          explain: "AND se comporte comme une multiplication, OR comme une addition — AND est prioritaire.",
+        },
+        {
+          question: "Pourquoi ajouter des parenthèses explicites même quand on connaît la règle de priorité AND/OR ?",
+          options: [
+            "PostgreSQL l'exige pour s'exécuter",
+            "Pour que l'intention reste sans ambiguïté pour tout futur lecteur du code",
+            "Ça n'a aucun intérêt, juste une habitude inutile",
+          ],
+          correct_index: 1,
+          explain: "La lisibilité et l'absence d'ambiguïté priment — surtout dans du SQL relu par une équipe.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.4",
+      slug: "filtrage-avance-in-between-like",
+      title: "Filtrage avancé : IN, BETWEEN, LIKE/ILIKE, IS NULL",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Au-delà des comparaisons simples, quatre outils couvrent la grande majorité des filtres réels : l'appartenance à une liste, un intervalle, une correspondance de motif textuel, et l'absence de valeur.",
+          },
+          { type: "h3", text: "IN — appartenance à une liste" },
+          {
+            type: "sql_code",
+            text: "-- Équivalent à une longue chaîne de OR, mais bien plus lisible\nselect * from dim_merchant\nwhere category in ('Alimentation', 'Transport', 'Santé');",
+          },
+          { type: "h3", text: "BETWEEN — un intervalle inclusif" },
+          {
+            type: "sql_code",
+            text: "-- Inclut les deux bornes : transactions entre 50 et 200 (inclus)\nselect * from fact_transactions\nwhere amount_local between 50 and 200;\n\n-- Fonctionne aussi sur des dates\nselect * from fact_transactions\nwhere transaction_at::date between '2024-01-01' and '2024-01-31';",
+          },
+          { type: "h3", text: "LIKE / ILIKE — correspondance de motif" },
+          {
+            type: "table",
+            headers: ["Symbole", "Signifie"],
+            rows: [
+              ["%", "Zéro, un ou plusieurs caractères quelconques"],
+              ["_", "Exactement un caractère quelconque"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- LIKE est sensible à la casse, ILIKE ne l'est pas (spécifique PostgreSQL)\nselect merchant_name from dim_merchant where merchant_name like 'Marché%';   -- doit commencer PAR \"Marché\" exactement\nselect merchant_name from dim_merchant where merchant_name ilike '%marché%'; -- contient \"marché\", casse ignorée",
+          },
+          { type: "h3", text: "IS NULL / IS NOT NULL — jamais = NULL" },
+          {
+            type: "callout",
+            title: "Pourquoi `= NULL` ne fonctionne jamais",
+            text: "NULL représente une absence de valeur, pas une valeur comme les autres. Comparer quoi que ce soit à NULL avec = renvoie NULL (ni vrai ni faux) — jamais vrai, même si la colonne est elle-même NULL. Seuls IS NULL et IS NOT NULL testent correctement l'absence de valeur.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ⚠ Ne renvoie JAMAIS de ligne, même si merchant_id est bien NULL quelque part\nselect * from raw_transactions_bronze where merchant_id = null;\n\n-- ✅ Le seul test correct\nselect * from raw_transactions_bronze where merchant_id is null;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Combine les quatre outils : trouve les marchands de catégorie 'Alimentation' ou 'Transport', dont le nom contient 'marché' (insensible à la casse).",
+            starterQuery:
+              "select merchant_name, category from dim_merchant\nwhere category in ('Alimentation', 'Transport')\n  and merchant_name ilike '%marché%';",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "BETWEEN 50 AND 200 inclut-il les valeurs 50 et 200 elles-mêmes ?",
+          options: ["Oui, les deux bornes sont incluses", "Non, aucune des deux bornes", "Seulement la borne basse"],
+          correct_index: 0,
+          explain: "BETWEEN est un intervalle fermé (inclusif) des deux côtés.",
+        },
+        {
+          question: "Que renvoie `where colonne = null` dans PostgreSQL ?",
+          options: ["Toutes les lignes où colonne est NULL", "Jamais aucune ligne, même si colonne est NULL", "Une erreur de syntaxe"],
+          correct_index: 1,
+          explain: "= NULL renvoie toujours NULL, jamais vrai — il faut IS NULL pour tester l'absence de valeur.",
+        },
+        {
+          question: "Quelle différence entre LIKE et ILIKE en PostgreSQL ?",
+          options: ["ILIKE est insensible à la casse, LIKE non", "LIKE est plus rapide", "Aucune différence"],
+          correct_index: 0,
+          explain: "ILIKE est une extension PostgreSQL de LIKE, insensible à la casse.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.5",
+      slug: "order-by-limit-offset-distinct",
+      title: "ORDER BY, LIMIT, OFFSET, DISTINCT",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Trier, limiter et dédoublonner semblent triviaux — mais chacun a un coût de performance qu'il faut connaître avant de les utiliser sans réfléchir sur de gros volumes.",
+          },
+          { type: "h3", text: "ORDER BY : tri, et tri multi-colonnes" },
+          {
+            type: "sql_code",
+            text: "-- Tri par pays, puis par montant décroissant à l'intérieur de chaque pays\nselect country_code, transaction_id, amount_local\nfrom fact_transactions\norder by country_code asc, amount_local desc;",
+          },
+          { type: "h3", text: "LIMIT et OFFSET — pagination naïve" },
+          {
+            type: "sql_code",
+            text: "-- Page 3, 20 résultats par page (lignes 41 à 60)\nselect * from fact_transactions\norder by transaction_id\nlimit 20 offset 40;",
+          },
+          {
+            type: "callout",
+            title: "🪤 Pourquoi OFFSET devient un problème à grande échelle",
+            text: "OFFSET 40 ne \"saute\" pas magiquement les 40 premières lignes : le moteur les lit puis les jette. Sur `page 5000` avec OFFSET 100000, PostgreSQL doit quand même parcourir 100 020 lignes pour n'en renvoyer que 20. La pagination par clé (keyset pagination, ex. `where transaction_id > dernier_id_vu`) reste rapide quelle que soit la profondeur de page — retiens ce nom, il revient en Leçon 2.8.",
+          },
+          { type: "h3", text: "DISTINCT — dédoublonner, à quel coût" },
+          {
+            type: "sql_code",
+            text: "-- Quels canaux de paiement existent réellement dans les données ?\nselect distinct channel from fact_transactions;\n\n-- DISTINCT ON (PostgreSQL) : une ligne par valeur de la colonne indiquée, selon l'ORDER BY\nselect distinct on (customer_id) customer_id, transaction_id, amount_local\nfrom fact_transactions\norder by customer_id, amount_local desc;  -- garde la transaction la plus GRANDE par client",
+          },
+          {
+            type: "p",
+            text: "DISTINCT force un tri interne sur toutes les colonnes sélectionnées pour repérer les doublons. Sur une table de quelques milliers de lignes, invisible. Sur des dizaines de millions, un DISTINCT mal placé — par exemple sur une requête qui n'en a pas réellement besoin parce que la clé est déjà unique — peut multiplier inutilement le temps d'exécution.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Utilise DISTINCT ON pour trouver la transaction la plus récente de chaque pays.",
+            starterQuery:
+              "select distinct on (country_code) country_code, transaction_id, transaction_at\nfrom fact_transactions\norder by country_code, transaction_at desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi la pagination par OFFSET devient-elle lente sur de grandes pages (ex. OFFSET 100000) ?",
+          options: [
+            "PostgreSQL refuse les gros OFFSET",
+            "Le moteur lit puis jette toutes les lignes avant l'offset demandé",
+            "OFFSET ne fonctionne qu'avec ORDER BY",
+          ],
+          correct_index: 1,
+          explain: "La pagination par clé (keyset) évite ce coût en filtrant directement à partir du dernier identifiant vu.",
+        },
+        {
+          question: "Que fait `DISTINCT ON (customer_id)` combiné à un ORDER BY ?",
+          options: [
+            "Supprime la colonne customer_id du résultat",
+            "Garde une seule ligne par customer_id, celle en tête selon l'ORDER BY",
+            "Trie sans dédoublonner",
+          ],
+          correct_index: 1,
+          explain: "DISTINCT ON est une extension PostgreSQL très utile pour \"la ligne représentative\" par groupe.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.6",
+      slug: "case-when-coalesce-nullif",
+      title: "CASE WHEN, COALESCE, NULLIF",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 20,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Trois outils pour de la logique conditionnelle directement dans une requête, sans avoir besoin de récupérer les données pour les transformer ailleurs.",
+          },
+          { type: "h3", text: "CASE WHEN — le if/else de SQL" },
+          {
+            type: "sql_code",
+            text: "-- Classer chaque transaction en tranche de montant\nselect transaction_id, amount_local,\n  case\n    when amount_local < 20 then 'petite'\n    when amount_local < 100 then 'moyenne'\n    else 'grande'\n  end as tranche\nfrom fact_transactions\nlimit 10;",
+          },
+          { type: "h3", text: "COALESCE — la première valeur non nulle" },
+          {
+            type: "sql_code",
+            text: "-- Si merchant_id est NULL dans une extraction imparfaite, afficher 'Inconnu' plutôt qu'un vide\nselect transaction_id, coalesce(merchant_id::text, 'Inconnu') as merchant\nfrom raw_transactions_bronze\nlimit 10;",
+          },
+          { type: "h3", text: "NULLIF — transformer une valeur spécifique en NULL" },
+          {
+            type: "sql_code",
+            text: "-- Traiter une chaîne vide comme une absence de valeur, pas comme du texte\nselect transaction_id, nullif(merchant_id, '') as merchant_id_propre\nfrom raw_transactions_bronze;",
+          },
+          {
+            type: "callout",
+            title: "Un usage combiné fréquent en data engineering",
+            text: "COALESCE et NULLIF s'utilisent souvent ensemble : NULLIF convertit une valeur \"sale\" (chaîne vide, 'N/A', -1 utilisé comme code d'erreur) en un vrai NULL, puis COALESCE fournit une valeur de repli propre à afficher. C'est exactement ce que fera la couche Silver du pipeline en Leçon 2.7.",
+          },
+          {
+            type: "sql_code",
+            text: "select transaction_id,\n  coalesce(nullif(merchant_id, ''), 'INCONNU') as merchant_propre\nfrom raw_transactions_bronze;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Classe chaque transaction en 'faible risque' (< 100), 'à surveiller' (100-500), 'à vérifier' (> 500) avec un CASE WHEN.",
+            starterQuery:
+              "select transaction_id, amount_local,\n  case\n    when amount_local < 100 then 'faible risque'\n    when amount_local <= 500 then 'à surveiller'\n    else 'à vérifier'\n  end as niveau\nfrom fact_transactions\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que fait COALESCE(a, b, c) ?",
+          options: [
+            "Renvoie toujours a",
+            "Renvoie la première valeur non nulle parmi a, b, c",
+            "Renvoie NULL si l'une des trois est NULL",
+          ],
+          correct_index: 1,
+          explain: "COALESCE parcourt la liste et s'arrête à la première valeur non nulle.",
+        },
+        {
+          question: "À quoi sert NULLIF(valeur, 'sentinelle') ?",
+          options: [
+            "À transformer 'sentinelle' en NULL si valeur lui est égale",
+            "À interdire les valeurs NULL",
+            "À comparer deux colonnes uniquement",
+          ],
+          correct_index: 0,
+          explain: "Utile pour convertir une valeur 'sale' connue (chaîne vide, code d'erreur) en un vrai NULL exploitable.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.7",
+      slug: "null-logique-trois-valeurs-piege-not-in",
+      title: "NULL et la logique à trois valeurs : le piège NOT IN",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 30,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "C'est probablement le piège SQL le plus coûteux en production — parce qu'il ne produit ni erreur ni avertissement. Il produit silencieusement zéro résultat, ou un résultat incomplet, et rien ne le signale.",
+          },
+          {
+            type: "callout",
+            title: "La logique à trois valeurs de SQL",
+            text: "En SQL, une condition n'est pas vraie ou fausse — elle est vraie, fausse, ou inconnue (UNKNOWN) dès qu'un NULL est impliqué. `5 = NULL` n'est pas faux, il est inconnu. Et NOT (inconnu) reste inconnu — ce n'est PAS vrai. C'est cette règle, invisible dans l'usage courant, qui casse silencieusement NOT IN.",
+          },
+          {
+            type: "sql_code",
+            text: "-- raw_transactions_bronze.customer_id contient quelques valeurs NULL (extraction imparfaite, volontairement)\nselect count(*) filter (where customer_id is null) from raw_transactions_bronze;",
+          },
+          {
+            type: "callout",
+            title: "🪤 Le piège du NULL — testé sur nos vraies données",
+            text: "La requête ci-dessous semble raisonnable : trouver les clients qui n'apparaissent jamais dans cette extraction brute. Mais dès qu'un NULL se glisse dans la liste comparée par NOT IN, la comparaison devient indéterminée pour CHAQUE ligne de la table externe — et la requête ne renvoie plus jamais rien, silencieusement.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ⚠ Renvoie TOUJOURS zéro ligne à cause des NULL dans la sous-requête\nselect * from dim_customer\nwhere customer_id not in (select customer_id::int from raw_transactions_bronze);\n\n-- ✅ Option 1 : filtrer les NULL avant NOT IN (fonctionne, mais facile à oublier)\nselect * from dim_customer\nwhere customer_id not in (\n  select customer_id::int from raw_transactions_bronze where customer_id is not null\n);\n\n-- ✅ Option 2 (recommandée) : NOT EXISTS ignore proprement les NULL, sans piège possible\nselect c.* from dim_customer c\nwhere not exists (\n  select 1 from raw_transactions_bronze b\n  where b.customer_id is not null and b.customer_id::int = c.customer_id\n);",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Exécute d'abord la version NOT IN (elle renverra 0 ligne), puis la version NOT EXISTS. Compare les deux résultats.",
+            starterQuery:
+              "select count(*) from dim_customer\nwhere customer_id not in (select customer_id::int from raw_transactions_bronze);",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Règle pratique à garder pour toute ta carrière : dès qu'une sous-requête peut contenir des NULL, préfère systématiquement NOT EXISTS à NOT IN. IN (positif) n'a pas ce problème — seul NOT IN (négatif) est piégé par la logique à trois valeurs.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Combien d'états une condition peut-elle prendre en SQL dès qu'un NULL est impliqué ?",
+          options: ["Deux : vrai ou faux", "Trois : vrai, faux, ou inconnu (UNKNOWN)", "Un seul : toujours faux"],
+          correct_index: 1,
+          explain: "C'est la logique à trois valeurs (three-valued logic) de SQL — la source du piège NOT IN.",
+        },
+        {
+          question: "Pourquoi NOT IN renvoie-t-il zéro ligne dès qu'un NULL traîne dans sa sous-requête ?",
+          options: [
+            "Ce n'est pas vrai, NOT IN ignore les NULL automatiquement",
+            "La comparaison devient indéterminée (UNKNOWN) pour chaque ligne testée, ce qui n'est jamais retenu",
+            "PostgreSQL lève une erreur dans ce cas",
+          ],
+          correct_index: 1,
+          explain: "NOT (UNKNOWN) reste UNKNOWN — jamais vrai — donc aucune ligne n'est jamais retenue.",
+        },
+        {
+          question: "Quelle alternative à NOT IN est immunisée contre ce piège du NULL ?",
+          options: ["NOT EXISTS", "IN", "DISTINCT"],
+          correct_index: 0,
+          explain: "NOT EXISTS teste une existence booléenne pure, sans jamais comparer directement à une valeur potentiellement NULL.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.8",
+      slug: "jsonb-en-pratique",
+      title: "JSONB en pratique",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "fact_transactions.channel_metadata est une colonne JSONB — chaque transaction mobile money y stocke l'opérateur (Orange Money, M-Pesa, MTN MoMo...) et le système d'exploitation, sans avoir besoin d'une colonne dédiée par opérateur ni de modifier le schéma à chaque nouvel opérateur ajouté.",
+          },
+          {
+            type: "table",
+            headers: ["Opérateur", "Résultat"],
+            rows: [
+              ["->", "Un sous-objet ou tableau JSON (reste du JSON)"],
+              ["->>", "Une valeur en texte brut, directement comparable/affichable"],
+              ["#>", "Chemin JSON profond (tableau de clés), résultat en JSON"],
+              ["#>>", "Chemin JSON profond, résultat en texte"],
+              ["@>", "\"Contient\" — teste si un JSON en contient un autre"],
+              ["?", "Teste si une clé existe au premier niveau"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Extraire l'opérateur et le système d'exploitation\nselect transaction_id,\n  channel_metadata->>'operator' as operator,\n  channel_metadata->>'device_os' as device_os\nfrom fact_transactions\nwhere channel = 'mobile_money'\nlimit 10;",
+          },
+          {
+            type: "sql_code",
+            text: "-- Filtrer directement sur un champ JSON, sans le sortir en colonne\nselect transaction_id, channel_metadata\nfrom fact_transactions\nwhere channel_metadata->>'operator' = 'Orange Money'\n  and channel_metadata->>'device_os' = 'android';",
+          },
+          {
+            type: "sql_code",
+            text: "-- Vérifier qu'une clé existe avant de l'utiliser (utile si le schéma JSON varie)\nselect transaction_id from fact_transactions\nwhere channel_metadata ? 'operator';",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi JSONB (et pas JSON) est le bon choix par défaut",
+            text: "PostgreSQL propose deux types : json (stocke le texte brut tel quel, préserve l'ordre des clés) et jsonb (stocke une représentation binaire décomposée). jsonb est presque toujours préférable : plus rapide à interroger, indexable (GIN), et permet les opérateurs ->, ->>, @>. Le seul cas pour json pur est de vouloir préserver le texte exact, whitespace inclus.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Index GIN sur une colonne JSONB — accélère les recherches @> et ? à grande échelle\ncreate index idx_channel_metadata on fact_transactions using gin (channel_metadata);",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Compte le nombre de transactions mobile_money par opérateur extrait du JSON.",
+            starterQuery:
+              "select channel_metadata->>'operator' as operator, count(*)\nfrom fact_transactions\nwhere channel = 'mobile_money'\ngroup by operator\norder by count(*) desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel opérateur JSONB renvoie une valeur directement en texte, prête à comparer ?",
+          options: ["->", "->>", "#>"],
+          correct_index: 1,
+          explain: "-> renvoie encore du JSON ; ->> renvoie du texte brut directement exploitable.",
+        },
+        {
+          question: "Pourquoi préférer jsonb à json dans la quasi-totalité des cas ?",
+          options: [
+            "jsonb est plus rapide à interroger et peut être indexé (GIN)",
+            "json n'existe plus dans PostgreSQL récent",
+            "jsonb préserve l'ordre exact des clés, pas json",
+          ],
+          correct_index: 0,
+          explain: "jsonb stocke une forme binaire décomposée qui accélère les requêtes et permet des index GIN.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.9",
+      slug: "group-by-fonctions-agregation",
+      title: "GROUP BY et les fonctions d'agrégation",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 25,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "GROUP BY transforme des lignes individuelles en groupes, sur lesquels on peut ensuite calculer des agrégats. C'est l'outil qui répond à toutes les questions \"combien\", \"quelle moyenne\", \"quel total, par...\".",
+          },
+          {
+            type: "table",
+            headers: ["Fonction", "Calcule"],
+            rows: [
+              ["COUNT(*)", "Le nombre de lignes du groupe"],
+              ["COUNT(colonne)", "Le nombre de lignes où colonne n'est PAS NULL"],
+              ["SUM(colonne)", "La somme des valeurs"],
+              ["AVG(colonne)", "La moyenne"],
+              ["MIN / MAX(colonne)", "La plus petite / grande valeur"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Volume et montant moyen par pays\nselect country_code,\n  count(*) as nb_transactions,\n  sum(amount_local) as volume_total,\n  avg(amount_local) as montant_moyen,\n  min(amount_local) as plus_petite,\n  max(amount_local) as plus_grande\nfrom fact_transactions\ngroup by country_code\norder by volume_total desc;",
+          },
+          {
+            type: "callout",
+            title: "🪤 COUNT(*) vs COUNT(colonne) — pas le même résultat",
+            text: "COUNT(*) compte toutes les lignes du groupe, sans exception. COUNT(colonne) ignore les lignes où cette colonne est NULL. Sur raw_transactions_bronze, `count(*)` et `count(customer_id)` donnent des chiffres différents précisément à cause des NULL volontaires dans cette table.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Ces deux chiffres diffèrent — la différence EST le nombre de customer_id manquants\nselect count(*) as total_lignes, count(customer_id) as lignes_avec_client\nfrom raw_transactions_bronze;",
+          },
+          { type: "h3", text: "GROUP BY sur plusieurs colonnes" },
+          {
+            type: "sql_code",
+            text: "-- Un groupe par combinaison unique (pays, canal)\nselect country_code, channel, count(*) as nb, sum(amount_local) as volume\nfrom fact_transactions\ngroup by country_code, channel\norder by country_code, volume desc;",
+          },
+          {
+            type: "callout",
+            title: "La règle d'or de GROUP BY",
+            text: "Toute colonne apparaissant dans le SELECT sans être dans une fonction d'agrégat DOIT figurer dans le GROUP BY — sinon PostgreSQL refuse la requête (contrairement à certains autres moteurs plus permissifs). C'est une garantie de correction : le moteur t'empêche d'afficher une valeur qui n'a pas de sens unique pour le groupe.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Calcule le nombre de marchands par pays ET par catégorie.",
+            starterQuery:
+              "select country_code, category, count(*) as nb_marchands\nfrom dim_merchant\ngroup by country_code, category\norder by country_code, nb_marchands desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle différence entre COUNT(*) et COUNT(customer_id) sur une table contenant des NULL dans customer_id ?",
+          options: [
+            "Aucune différence",
+            "COUNT(*) compte toutes les lignes, COUNT(customer_id) ignore les lignes où customer_id est NULL",
+            "COUNT(customer_id) provoque une erreur",
+          ],
+          correct_index: 1,
+          explain: "C'est un excellent moyen de mesurer rapidement le taux de valeurs manquantes dans une colonne.",
+        },
+        {
+          question: "Que se passe-t-il si une colonne du SELECT n'est ni agrégée ni présente dans le GROUP BY ?",
+          options: [
+            "PostgreSQL choisit une valeur arbitraire",
+            "PostgreSQL refuse d'exécuter la requête",
+            "Elle est automatiquement ignorée",
+          ],
+          correct_index: 1,
+          explain: "PostgreSQL est strict sur ce point, contrairement à certains moteurs plus permissifs — c'est une garantie de correction.",
+        },
+      ],
+    },
+
+    {
+      number: "2.2.10",
+      slug: "having-atelier-synthese-chapitre-2-2",
+      title: "HAVING et atelier de synthèse du chapitre",
+      parentSlug: "sql-foundations-pour-data-engineers",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "HAVING est le dernier morceau manquant : un filtre, mais qui s'applique APRÈS le regroupement, sur les résultats agrégés — là où WHERE ne peut pas aller.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Pays où le volume de transactions dépasse 500 lignes\nselect country_code, count(*) as nb_transactions, sum(amount_local) as volume\nfrom fact_transactions\ngroup by country_code\nhaving count(*) > 500\norder by nb_transactions desc;",
+          },
+          {
+            type: "callout",
+            title: "WHERE filtre les lignes, HAVING filtre les groupes",
+            text: "`where count(*) > 500` est refusé par PostgreSQL — count(*) n'existe pas encore au moment où WHERE s'exécute (revoir la Leçon 2.2.1 sur l'ordre logique). HAVING existe précisément pour filtrer sur un résultat agrégé.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Cette requête retourne le bon résultat sur 5 000 lignes en quelques millisecondes — mais tiendrait-elle avec 50 millions de lignes ? WHERE filtre avant l'agrégation (donc sur les lignes brutes, réduisant le volume à agréger), HAVING filtre après (sur les groupes déjà calculés) : intervertir leur rôle par erreur — par exemple recalculer un agrégat que WHERE aurait pu éliminer plus tôt — peut faire scanner des dizaines de fois plus de données que nécessaire.",
+          },
+          { type: "h3", text: "Atelier de synthèse — tout le chapitre en une session" },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.3 si tu peux répondre oui à chaque point",
+            items: [
+              "Je connais l'ordre logique d'exécution d'une requête (FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT)",
+              "Je sais pourquoi `= NULL` ne fonctionne jamais et j'utilise IS NULL",
+              "Je sais pourquoi NOT IN est dangereux avec une sous-requête pouvant contenir des NULL",
+              "Je sais extraire un champ JSONB en texte avec ->>",
+              "Je sais quand utiliser WHERE et quand utiliser HAVING",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 1 — Pour chaque canal de paiement, calcule le nombre de transactions et le montant moyen, uniquement pour les canaux avec plus de 1000 transactions.",
+            starterQuery:
+              "select channel, count(*) as nb, avg(amount_local) as montant_moyen\nfrom fact_transactions\ngroup by channel\nhaving count(*) > 1000\norder by nb desc;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 2 — Combine tout : parmi les transactions 'completed' de plus de 50, quels pays ont un montant moyen supérieur à 80 ?",
+            starterQuery:
+              "select country_code, count(*) as nb, avg(amount_local) as montant_moyen\nfrom fact_transactions\nwhere status = 'completed' and amount_local > 50\ngroup by country_code\nhaving avg(amount_local) > 80\norder by montant_moyen desc;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi `where count(*) > 500` est-il refusé par PostgreSQL ?",
+          options: [
+            "count(*) n'est pas encore calculé au moment où WHERE s'exécute logiquement",
+            "500 est trop grand pour WHERE",
+            "Il manque un GROUP BY dans la requête",
+          ],
+          correct_index: 0,
+          explain: "WHERE s'exécute avant l'agrégation — HAVING existe précisément pour filtrer après.",
+        },
+        {
+          question: "Pourquoi est-il plus efficace de filtrer un maximum de lignes avec WHERE plutôt qu'avec HAVING quand c'est possible ?",
+          options: [
+            "Ce n'est jamais plus efficace",
+            "WHERE réduit le volume de lignes à agréger, avant le travail de regroupement",
+            "HAVING est interdit sur de grandes tables",
+          ],
+          correct_index: 1,
+          explain: "Filtrer tôt (WHERE) réduit le travail que GROUP BY et les agrégats doivent ensuite effectuer.",
+        },
+        {
+          question: "Quel est l'ordre logique correct d'exécution d'une requête complète ?",
+          options: [
+            "SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY",
+            "FROM, WHERE, GROUP BY, HAVING, SELECT, ORDER BY, LIMIT",
+            "WHERE, SELECT, FROM, ORDER BY, GROUP BY",
+          ],
+          correct_index: 1,
+          explain: "C'est l'ordre vu en détail en Leçon 2.2.1 — la source d'abord, puis les filtres et regroupements, puis la projection finale.",
+        },
+      ],
+    },
+
+    // ============================================================
+    // CHAPITRE 2.3 — JOINS, ENSEMBLES, SOUS-REQUÊTES, CTEs
+    // ============================================================
+    {
+      number: "2.3",
+      slug: "joins-ensembles-sous-requetes-ctes",
+      title: "Joins, ensembles, sous-requêtes, CTEs",
+      duration_minutes: 15,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Aucune donnée utile ne vit dans une seule table. Ce chapitre est celui où AfriPay cesse d'être huit tables isolées pour devenir un système cohérent — la compétence la plus utilisée au quotidien par un data engineer, tout de suite après SELECT/WHERE.",
+          },
+          {
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
+            items: [
+              "2.3.1 — INNER JOIN : combiner deux tables sur une correspondance",
+              "2.3.2 — LEFT / RIGHT JOIN : garder les lignes sans correspondance",
+              "2.3.3 — FULL JOIN et CROSS JOIN",
+              "2.3.4 — SELF JOIN : une table jointe à elle-même",
+              "2.3.5 — Cardinalité : pourquoi les lignes se multiplient",
+              "2.3.6 — Jointures multiples : combiner 3 tables ou plus",
+              "2.3.7 — UNION, INTERSECT, EXCEPT : les opérateurs d'ensembles",
+              "2.3.8 — Sous-requêtes non-corrélées",
+              "2.3.9 — Sous-requêtes corrélées et EXISTS",
+              "2.3.10 — CTEs (WITH) et atelier de synthèse du chapitre",
+            ],
+          },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.3.1",
+      slug: "inner-join-combiner-deux-tables",
+      title: "INNER JOIN : combiner deux tables sur une correspondance",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une jointure combine les colonnes de deux tables sur une condition de correspondance. INNER JOIN — le type par défaut — ne garde que les lignes où cette correspondance existe des deux côtés.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Chaque transaction avec le nom complet du pays (INNER — country_code est toujours renseigné)\nselect t.transaction_id, c.country_name, t.amount_local\nfrom fact_transactions t\njoin dim_country c on c.country_code = t.country_code\nlimit 20;",
+            caption: "\"join\" seul est un raccourci de \"inner join\" en PostgreSQL — les deux s'écrivent, inner join est plus explicite.",
+          },
+          {
+            type: "callout",
+            title: "La ligne disparaît si la correspondance échoue",
+            text: "Si une transaction avait un country_code qui n'existe dans aucune ligne de dim_country, INNER JOIN l'exclurait purement et simplement du résultat — sans erreur, sans avertissement. C'est la raison pour laquelle INNER JOIN n'est jamais le bon choix quand tu veux explicitement repérer les lignes SANS correspondance (voir Leçon 2.3.2).",
+          },
+          { type: "h3", text: "Toujours qualifier ses colonnes dans une jointure" },
+          {
+            type: "sql_code",
+            text: "-- ❌ Ambigu dès que les deux tables ont une colonne du même nom\n-- select transaction_id, country_code from fact_transactions t join dim_country c on ...\n\n-- ✅ Toujours préfixer par l'alias de table\nselect t.transaction_id, t.country_code, c.country_name, c.region\nfrom fact_transactions t\njoin dim_country c on c.country_code = t.country_code;",
+          },
+          { type: "h3", text: "La condition ON — au-delà de l'égalité simple" },
+          {
+            type: "p",
+            text: "ON accepte n'importe quelle condition, pas seulement une égalité de clé. C'est rare en pratique mais utile à savoir : une jointure peut par exemple combiner deux tables sur un intervalle de dates plutôt qu'une clé exacte.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Joins fact_transactions à dim_merchant pour afficher le nom et la catégorie du marchand de chaque transaction, limité à 15 lignes.",
+            starterQuery:
+              "select t.transaction_id, m.merchant_name, m.category, t.amount_local\nfrom fact_transactions t\njoin dim_merchant m on m.merchant_id = t.merchant_id\nlimit 15;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que fait INNER JOIN si aucune ligne de la table de droite ne correspond à une ligne de gauche ?",
+          options: [
+            "Il inclut quand même la ligne de gauche avec des NULL",
+            "Il exclut cette ligne du résultat, sans erreur",
+            "Il lève une erreur",
+          ],
+          correct_index: 1,
+          explain: "INNER JOIN ne garde que les correspondances des deux côtés — silencieusement.",
+        },
+        {
+          question: "Pourquoi toujours qualifier ses colonnes (t.col, c.col) dans une requête avec jointure ?",
+          options: [
+            "PostgreSQL l'exige pour toute jointure",
+            "Pour éviter toute ambiguïté quand deux tables partagent un nom de colonne",
+            "Ça accélère l'exécution",
+          ],
+          correct_index: 1,
+          explain: "Lisibilité et absence d'ambiguïté — surtout utile dès qu'on relit le code plus tard.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.2",
+      slug: "left-right-join",
+      title: "LEFT / RIGHT JOIN : garder les lignes sans correspondance",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "LEFT JOIN garde TOUTES les lignes de la table de gauche, avec ou sans correspondance à droite — complétant de NULL les colonnes de droite en l'absence de correspondance. C'est l'outil numéro un pour répondre à \"qu'est-ce qui manque ?\".",
+          },
+          {
+            type: "sql_code",
+            text: "-- Chaque client, avec ses transactions si il en a — même s'il n'en a AUCUNE\nselect c.customer_id, c.full_name, t.transaction_id, t.amount_local\nfrom dim_customer c\nleft join fact_transactions t on t.customer_id = c.customer_id\norder by c.customer_id\nlimit 20;",
+          },
+          {
+            type: "callout",
+            title: "Le cas d'usage le plus rentable de LEFT JOIN : trouver ce qui manque",
+            text: "Un LEFT JOIN suivi d'un `where <table_de_droite>.id is null` révèle exactement les lignes de gauche SANS correspondance — une des requêtes de diagnostic les plus utilisées en data engineering (clients sans transaction, marchands jamais utilisés, etc.).",
+          },
+          {
+            type: "sql_code",
+            text: "-- Clients AfriPay qui n'ont encore jamais fait de transaction\nselect c.customer_id, c.full_name\nfrom dim_customer c\nleft join fact_transactions t on t.customer_id = c.customer_id\nwhere t.transaction_id is null;",
+          },
+          { type: "h3", text: "RIGHT JOIN — l'inverse, rarement utilisé en pratique" },
+          {
+            type: "p",
+            text: "RIGHT JOIN garde toutes les lignes de la table de DROITE. C'est mathématiquement identique à un LEFT JOIN avec les deux tables inversées — la convention en entreprise est presque toujours de réécrire en LEFT JOIN pour garder une seule direction de lecture cohérente dans tout le code de l'équipe.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Ces deux requêtes sont strictement équivalentes\nselect * from dim_customer c right join fact_transactions t on t.customer_id = c.customer_id;\nselect * from fact_transactions t left join dim_customer c on t.customer_id = c.customer_id;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Trouve les marchands AfriPay qui n'ont jamais reçu de transaction (LEFT JOIN + IS NULL).",
+            starterQuery:
+              "select m.merchant_id, m.merchant_name\nfrom dim_merchant m\nleft join fact_transactions t on t.merchant_id = m.merchant_id\nwhere t.transaction_id is null;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que fait un LEFT JOIN quand aucune ligne de droite ne correspond ?",
+          options: [
+            "Il exclut la ligne de gauche",
+            "Il garde la ligne de gauche, avec NULL pour les colonnes de droite",
+            "Il lève une erreur",
+          ],
+          correct_index: 1,
+          explain: "C'est la différence fondamentale avec INNER JOIN — LEFT JOIN ne perd jamais de lignes de gauche.",
+        },
+        {
+          question: "Comment trouver les clients qui n'ont jamais fait de transaction ?",
+          options: [
+            "INNER JOIN puis WHERE amount_local = 0",
+            "LEFT JOIN dim_customer vers fact_transactions, puis WHERE transaction_id IS NULL",
+            "Ce n'est pas possible en SQL",
+          ],
+          correct_index: 1,
+          explain: "Le LEFT JOIN garde les clients sans transaction avec des colonnes à droite toutes NULL — faciles à isoler ensuite.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.3",
+      slug: "full-join-cross-join",
+      title: "FULL JOIN et CROSS JOIN",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 20,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Deux types de jointures plus rares, mais chacune a un cas d'usage précis qu'aucun autre JOIN ne couvre.",
+          },
+          { type: "h3", text: "FULL JOIN — l'union complète, correspondance ou non" },
+          {
+            type: "sql_code",
+            text: "-- Tous les pays connus, avec leurs clients ET marchands s'ils existent — même sans correspondance d'un côté\nselect co.country_name, c.customer_id, m.merchant_id\nfrom dim_country co\nfull join dim_customer c on c.country_code = co.country_code\nfull join dim_merchant m on m.country_code = co.country_code\nlimit 20;",
+          },
+          {
+            type: "p",
+            text: "FULL JOIN combine le comportement de LEFT et RIGHT : rien n'est perdu d'aucun des deux côtés. Utile pour un rapprochement de deux sources qui devraient théoriquement se recouper, mais où on veut voir explicitement les écarts des deux côtés (ex. réconciliation comptable).",
+          },
+          { type: "h3", text: "CROSS JOIN — le produit cartésien" },
+          {
+            type: "callout",
+            title: "Attention à la taille du résultat",
+            text: "CROSS JOIN associe CHAQUE ligne de gauche à CHAQUE ligne de droite — sans aucune condition. 200 clients × 50 marchands = 10 000 lignes générées, même si aucune de ces combinaisons n'a de sens métier. Un CROSS JOIN accidentel (une jointure où on a oublié la condition ON) est une des causes les plus fréquentes de requêtes qui explosent en volume sans erreur visible.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Cas d'usage légitime : générer toutes les combinaisons (pays × mois) pour un rapport complet, même sans données\nselect co.country_name, d.month\nfrom dim_country co\ncross join (select distinct month from dim_date where year = 2024) d\norder by co.country_name, d.month;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Génère toutes les combinaisons (pays × catégorie de marchand) pour repérer les combinaisons qui n'existent pas encore dans les données.",
+            starterQuery:
+              "select co.country_name, cat.category\nfrom dim_country co\ncross join (select distinct category from dim_merchant) cat\norder by co.country_name, cat.category;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que garde un FULL JOIN qu'un LEFT JOIN seul ne garde pas ?",
+          options: [
+            "Rien de plus",
+            "Les lignes de la table de droite qui n'ont pas de correspondance à gauche",
+            "Uniquement les lignes correspondantes",
+          ],
+          correct_index: 1,
+          explain: "FULL JOIN combine LEFT et RIGHT — rien n'est perdu, d'aucun côté.",
+        },
+        {
+          question: "Quel est le principal risque d'un CROSS JOIN non intentionnel (ON oublié) ?",
+          options: [
+            "Une erreur de syntaxe immédiate",
+            "Un résultat qui explose en volume — chaque ligne de gauche combinée à chaque ligne de droite",
+            "Aucun risque particulier",
+          ],
+          correct_index: 1,
+          explain: "200 × 50 = 10 000 lignes générées sans qu'aucune erreur ne le signale — un piège classique en SQL.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.4",
+      slug: "self-join",
+      title: "SELF JOIN : une table jointe à elle-même",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un SELF JOIN n'est pas un type de jointure différent techniquement — c'est n'importe quel JOIN (souvent LEFT) où une table est jointe à elle-même, avec deux alias différents. Le cas d'usage typique : une hiérarchie stockée dans une seule table.",
+          },
+          {
+            type: "callout",
+            title: "dim_agent : un cas d'usage réel de SELF JOIN",
+            text: "dim_agent stocke des agents mobile money avec une colonne manager_id qui référence agent_id de la MÊME table — un responsable régional supervise des agents de terrain, qui recrutent parfois des sous-agents. Retrouver \"le nom du manager\" de chaque agent demande de joindre la table à elle-même.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Chaque agent, avec le nom de SON manager (self join via deux alias : a et mgr)\nselect a.agent_name as agent, mgr.agent_name as manager\nfrom dim_agent a\nleft join dim_agent mgr on mgr.agent_id = a.manager_id\norder by a.agent_name;",
+            caption: "LEFT JOIN, pas INNER : les responsables régionaux au sommet de la hiérarchie n'ont pas de manager (manager_id est NULL).",
+          },
+          {
+            type: "sql_code",
+            text: "-- Combien de sous-agents directs supervise chaque manager ?\nselect mgr.agent_name as manager, count(a.agent_id) as nb_supervises\nfrom dim_agent mgr\njoin dim_agent a on a.manager_id = mgr.agent_id\ngroup by mgr.agent_name\norder by nb_supervises desc;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Un SELF JOIN ne remonte qu'un seul niveau de hiérarchie à la fois (le manager direct). Pour remonter TOUS les niveaux (le manager du manager du manager...), un SELF JOIN ne suffit plus — il faut une CTE récursive, vue en détail au Chapitre 2.5.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Liste chaque agent de terrain avec le nom de son manager direct.",
+            starterQuery:
+              "select a.agent_name, a.role, mgr.agent_name as manager\nfrom dim_agent a\nleft join dim_agent mgr on mgr.agent_id = a.manager_id\nwhere a.role = 'field_agent'\norder by mgr.agent_name;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Un SELF JOIN est utile pour modéliser :",
+          options: [
+            "Deux tables complètement indépendantes",
+            "Une relation hiérarchique stockée dans une seule table (ex. manager_id référençant la même table)",
+            "Uniquement des dates",
+          ],
+          correct_index: 1,
+          explain: "C'est exactement le cas de dim_agent avec manager_id qui référence agent_id.",
+        },
+        {
+          question: "Pourquoi utiliser LEFT JOIN plutôt que INNER JOIN pour le self join agent → manager ?",
+          options: [
+            "Parce que INNER JOIN n'est pas autorisé sur un self join",
+            "Parce que les responsables régionaux au sommet n'ont pas de manager (manager_id NULL) et seraient exclus par INNER JOIN",
+            "Aucune raison particulière",
+          ],
+          correct_index: 1,
+          explain: "INNER JOIN exclurait silencieusement tous les agents sans manager — LEFT JOIN les garde avec un manager NULL.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.5",
+      slug: "cardinalite-multiplication-lignes",
+      title: "Cardinalité : pourquoi les lignes se multiplient",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "La cardinalité d'une jointure — 1:1, 1:N, N:N — détermine combien de lignes le résultat va contenir. Se tromper de cardinalité produit un résultat qui s'exécute sans erreur mais qui ment silencieusement.",
+          },
+          {
+            type: "table",
+            headers: ["Cardinalité", "Exemple AfriPay", "Effet sur le nombre de lignes"],
+            rows: [
+              ["1:1", "dim_customer ↔ un futur dim_customer_profile", "Le nombre de lignes ne change pas après jointure"],
+              ["1:N", "dim_customer (1) → fact_transactions (N)", "Le client apparaît une fois PAR transaction — multiplication attendue"],
+              ["N:N", "dim_merchant ↔ dim_customer (via fact_transactions)", "Nécessite une table de liaison (ici, fact_transactions elle-même)"],
+            ],
+          },
+          {
+            type: "p",
+            text: "Une jointure 1:N (un client, plusieurs transactions) multiplie les lignes du côté \"1\" par le nombre de correspondances. C'est voulu et attendu quand l'objectif est justement de lister les transactions. Le problème survient quand une jointure censée être 1:1 devient accidentellement 1:N — parce qu'une clé qu'on pensait unique ne l'est pas.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Vérifier qu'une jointure ne va pas dupliquer des lignes : compare avant/après\nselect count(*) from fact_transactions; -- ligne de référence\n\nselect count(*) from fact_transactions t\njoin dim_customer c on c.customer_id = t.customer_id; -- doit renvoyer le même nombre (1:N respecté côté fact)",
+          },
+          {
+            type: "callout",
+            title: "🪤 Le piège classique : agréger un montant après une jointure 1:N mal maîtrisée",
+            text: "Si tu joins fact_transactions à une table qui, par erreur, a PLUSIEURS lignes par merchant_id (au lieu d'une seule attendue), chaque transaction sera dupliquée autant de fois — et un SUM(amount_local) sur ce résultat sera silencieusement gonflé. C'est l'erreur de reporting la plus fréquente et la plus difficile à détecter sans vérifier explicitement la cardinalité.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Vérifie que dim_merchant a bien un merchant_id unique (aucune ligne ne doit apparaître plus d'une fois) avant de t'y fier pour une jointure.",
+            starterQuery:
+              "select merchant_id, count(*) from dim_merchant\ngroup by merchant_id\nhaving count(*) > 1;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Si le nombre de lignes explose après une jointure que tu pensais 1:1, qu'est-ce que ça révèle ? Presque toujours : la colonne de jointure n'est pas réellement une clé unique côté droit — une hypothèse sur le modèle de données vient d'être invalidée par les faits, pas un bug du moteur SQL.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Une jointure 1:N entre dim_customer et fact_transactions multiplie les lignes de quel côté ?",
+          options: ["Du côté \"1\" (dim_customer)", "Du côté \"N\" (fact_transactions)", "Aucun côté ne change"],
+          correct_index: 0,
+          explain: "Chaque client apparaît une fois par transaction correspondante — le côté \"1\" se multiplie.",
         },
         {
           question: "Si une jointure que tu pensais 1:1 fait exploser le nombre de lignes, la cause la plus probable est :",
@@ -1119,14 +2052,350 @@ async function main() {
           explain: "C'est un signal sur le modèle de données, pas sur le moteur — une hypothèse de cardinalité vient d'être invalidée.",
         },
         {
+          question: "Pourquoi vérifier l'unicité d'une clé de jointure AVANT de faire un SUM() sur le résultat joint ?",
+          options: [
+            "Ce n'est jamais nécessaire",
+            "Une clé non unique du côté censé être \"1\" duplique silencieusement les lignes et gonfle les agrégats",
+            "SUM() vérifie automatiquement les doublons",
+          ],
+          correct_index: 1,
+          explain: "C'est l'erreur de reporting la plus fréquente et la plus difficile à repérer sans cette vérification explicite.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.6",
+      slug: "jointures-multiples-trois-tables-ou-plus",
+      title: "Jointures multiples : combiner 3 tables ou plus",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "En pratique, une question métier réelle demande rarement seulement deux tables. Chaîner les jointures est direct — à condition de garder chaque alias clair et chaque condition ON explicite.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Chaque transaction : nom du client, nom du marchand, nom du pays — trois jointures\nselect\n  t.transaction_id,\n  c.full_name as client,\n  m.merchant_name as marchand,\n  co.country_name as pays,\n  t.amount_local\nfrom fact_transactions t\njoin dim_customer c on c.customer_id = t.customer_id\njoin dim_merchant m on m.merchant_id = t.merchant_id\njoin dim_country co on co.country_code = t.country_code\nlimit 20;",
+          },
+          {
+            type: "callout",
+            title: "L'ordre des jointures compte-t-il pour le résultat ?",
+            text: "Non, PostgreSQL réordonne les jointures selon le plan qu'il juge le plus efficace (visible dans EXPLAIN, Chapitre 2.8) — le RÉSULTAT est identique quel que soit l'ordre d'écriture des JOIN, tant que la logique (INNER vs LEFT) reste cohérente. Mais l'ordre de LECTURE du code, lui, compte énormément pour la clarté : aller du plus \"central\" (fact_transactions) vers le plus périphérique aide un lecteur à suivre le raisonnement.",
+          },
+          {
+            type: "p",
+            text: "Mélanger LEFT JOIN et INNER JOIN dans une même chaîne demande de la vigilance : un INNER JOIN placé après un LEFT JOIN peut annuler l'effet du LEFT JOIN en filtrant de nouveau les lignes que celui-ci avait pris soin de garder.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ⚠ Piège : ce INNER JOIN final ré-exclut les clients sans transaction que le LEFT JOIN avait gardés\nselect c.full_name, t.transaction_id, m.merchant_name\nfrom dim_customer c\nleft join fact_transactions t on t.customer_id = c.customer_id\njoin dim_merchant m on m.merchant_id = t.merchant_id;   -- si t.merchant_id est NULL, la ligne disparaît\n\n-- ✅ Garder l'intention \"tous les clients\" jusqu'au bout : LEFT JOIN partout après le premier\nselect c.full_name, t.transaction_id, m.merchant_name\nfrom dim_customer c\nleft join fact_transactions t on t.customer_id = c.customer_id\nleft join dim_merchant m on m.merchant_id = t.merchant_id;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Combine quatre tables : chaque transaction avec le nom du client, du marchand, le pays, et le nom de l'agent qui l'a traitée si applicable (fact_transactions n'a pas de agent_id direct — utilise merchant_id et customer_id seulement ici).",
+            starterQuery:
+              "select t.transaction_id, c.full_name as client, m.merchant_name, co.country_name\nfrom fact_transactions t\njoin dim_customer c on c.customer_id = t.customer_id\njoin dim_merchant m on m.merchant_id = t.merchant_id\njoin dim_country co on co.country_code = t.country_code\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "L'ordre d'écriture des JOIN dans une requête change-t-il le résultat final (à logique INNER/LEFT égale) ?",
+          options: [
+            "Oui, toujours",
+            "Non — PostgreSQL détermine son propre plan d'exécution, le résultat logique reste identique",
+            "Seulement si plus de 3 tables sont impliquées",
+          ],
+          correct_index: 1,
+          explain: "Le moteur réordonne les jointures pour l'efficacité ; seule la lisibilité du code change avec l'ordre d'écriture.",
+        },
+        {
+          question: "Que se passe-t-il si un INNER JOIN suit un LEFT JOIN sur une colonne potentiellement NULL ?",
+          options: [
+            "Rien, l'effet du LEFT JOIN est préservé",
+            "L'INNER JOIN peut ré-exclure les lignes que le LEFT JOIN avait justement gardées",
+            "PostgreSQL refuse la requête",
+          ],
+          correct_index: 1,
+          explain: "Il faut garder LEFT JOIN sur toute la chaîne si l'intention est de ne perdre aucune ligne de la table d'origine.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.7",
+      slug: "union-intersect-except",
+      title: "UNION, INTERSECT, EXCEPT : les opérateurs d'ensembles",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Les opérateurs d'ensembles combinent le RÉSULTAT de deux requêtes (empilées verticalement), contrairement à JOIN qui combine des COLONNES de deux tables (côte à côte). Les deux requêtes combinées doivent avoir le même nombre de colonnes, avec des types compatibles.",
+          },
+          {
+            type: "table",
+            headers: ["Opérateur", "Résultat"],
+            rows: [
+              ["UNION", "Toutes les lignes des deux requêtes, doublons supprimés"],
+              ["UNION ALL", "Toutes les lignes des deux requêtes, doublons conservés — plus rapide (pas de tri de déduplication)"],
+              ["INTERSECT", "Uniquement les lignes présentes dans les DEUX requêtes"],
+              ["EXCEPT", "Les lignes de la première requête qui n'apparaissent PAS dans la seconde"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Pays où AfriPay a des clients OU des marchands (UNION dédoublonne automatiquement)\nselect country_code from dim_customer\nunion\nselect country_code from dim_merchant;\n\n-- Pays présents dans les deux ensembles à la fois (INTERSECT)\nselect country_code from dim_customer\nintersect\nselect country_code from dim_merchant;\n\n-- Pays qui ont des clients MAIS aucun marchand (EXCEPT)\nselect country_code from dim_customer\nexcept\nselect country_code from dim_merchant;",
+          },
+          {
+            type: "callout",
+            title: "UNION vs UNION ALL : un choix de performance, pas seulement de style",
+            text: "UNION fait un tri interne pour éliminer les doublons — un coût réel sur de gros volumes. Si tu sais déjà que les deux ensembles ne peuvent pas se recouper (ex. deux sources déjà mutuellement exclusives), UNION ALL est strictement équivalent en résultat mais plus rapide.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Utilise UNION ALL pour construire une liste combinée de tous les country_code présents dans dim_customer et dim_merchant, avec une colonne indiquant la source.",
+            starterQuery:
+              "select country_code, 'client' as source from dim_customer\nunion all\nselect country_code, 'marchand' as source from dim_merchant\norder by country_code;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle différence entre UNION et UNION ALL ?",
+          options: [
+            "UNION ALL est plus lent mais garde tout, UNION dédoublonne",
+            "UNION dédoublonne (avec un coût de tri), UNION ALL garde tous les doublons et est plus rapide",
+            "Aucune différence",
+          ],
+          correct_index: 1,
+          explain: "Si tu sais que les ensembles ne se recoupent pas, UNION ALL évite un tri de déduplication inutile.",
+        },
+        {
+          question: "EXCEPT entre deux requêtes A et B renvoie :",
+          options: [
+            "Les lignes présentes dans A et dans B",
+            "Les lignes de A qui n'apparaissent PAS dans B",
+            "Toutes les lignes des deux requêtes",
+          ],
+          correct_index: 1,
+          explain: "EXCEPT est un \"A moins B\" — utile pour trouver ce qui manque d'un côté par rapport à l'autre.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.8",
+      slug: "sous-requetes-non-correlees",
+      title: "Sous-requêtes non-corrélées",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une sous-requête non-corrélée s'exécute une seule fois, indépendamment de la requête externe — elle produit une valeur ou une liste de valeurs, ensuite utilisée par la requête principale.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Sous-requête scalaire : une seule valeur, utilisable dans une comparaison\nselect * from fact_transactions\nwhere amount_local > (select avg(amount_local) from fact_transactions);",
+          },
+          {
+            type: "sql_code",
+            text: "-- Sous-requête qui renvoie une liste : utilisée avec IN\nselect * from dim_merchant\nwhere country_code in (\n  select country_code from dim_country where region = 'Afrique de l''Ouest'\n);",
+          },
+          { type: "h3", text: "Sous-requête dans le FROM (table dérivée)" },
+          {
+            type: "sql_code",
+            text: "-- Le résultat d'une sous-requête peut lui-même être traité comme une table\nselect region, avg(volume_pays) as volume_moyen_region\nfrom (\n  select co.region, co.country_code, sum(t.amount_local) as volume_pays\n  from fact_transactions t\n  join dim_country co on co.country_code = t.country_code\n  group by co.region, co.country_code\n) as volumes_par_pays\ngroup by region;",
+          },
+          {
+            type: "callout",
+            title: "Sous-requête dans le FROM vs CTE (WITH)",
+            text: "Une sous-requête dans le FROM fait exactement la même chose qu'une CTE (Leçon 2.3.10) — la différence est purement de lisibilité. Sur une requête complexe à plusieurs étapes, une CTE nommée (`with volumes_par_pays as (...)`) est presque toujours préférable : elle se lit de haut en bas, une sous-requête imbriquée dans le FROM se lit de l'intérieur vers l'extérieur.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Trouve les transactions dont le montant dépasse la moyenne globale.",
+            starterQuery:
+              "select transaction_id, amount_local\nfrom fact_transactions\nwhere amount_local > (select avg(amount_local) from fact_transactions)\norder by amount_local desc\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Une sous-requête non-corrélée s'exécute :",
+          options: [
+            "Une fois par ligne de la requête externe",
+            "Une seule fois, indépendamment de la requête externe",
+            "Jamais, c'est juste une syntaxe alternative à JOIN",
+          ],
+          correct_index: 1,
+          explain: "C'est ce qui la distingue d'une sous-requête corrélée (Leçon 2.3.9), potentiellement bien plus coûteuse.",
+        },
+        {
+          question: "Quelle est la principale différence pratique entre une sous-requête dans le FROM et une CTE (WITH) ?",
+          options: [
+            "Aucune différence fonctionnelle, seulement la lisibilité",
+            "La CTE est toujours plus rapide",
+            "La sous-requête dans le FROM ne peut pas utiliser GROUP BY",
+          ],
+          correct_index: 0,
+          explain: "Les deux produisent le même résultat — la CTE se lit simplement de haut en bas, plus clair sur des requêtes à plusieurs étapes.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.9",
+      slug: "sous-requetes-correlees-exists",
+      title: "Sous-requêtes corrélées et EXISTS",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 25,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une sous-requête corrélée référence une colonne de la requête externe — elle se ré-exécute potentiellement pour chaque ligne de cette requête externe, ce qui la rend plus coûteuse mais aussi plus expressive.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Corrélée : la sous-requête référence m.merchant_id, donc elle se ré-exécute par marchand\nselect m.merchant_name,\n  (select count(*) from fact_transactions t where t.merchant_id = m.merchant_id) as nb_transactions\nfrom dim_merchant m;",
+          },
+          { type: "h3", text: "EXISTS — tester une existence, pas récupérer une valeur" },
+          {
+            type: "sql_code",
+            text: "-- Marchands qui ont reçu AU MOINS une transaction (EXISTS s'arrête dès la première correspondance trouvée)\nselect m.merchant_name from dim_merchant m\nwhere exists (\n  select 1 from fact_transactions t where t.merchant_id = m.merchant_id\n);",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi EXISTS est souvent préférable à IN pour tester une présence",
+            text: "EXISTS s'arrête dès qu'une correspondance est trouvée (court-circuit) — il n'a pas besoin de matérialiser toute la liste de résultats comme IN. Sur de grands volumes, EXISTS est généralement plus performant qu'un IN équivalent, et surtout, NOT EXISTS est totalement immunisé contre le piège NULL de NOT IN vu en Leçon 2.2.7.",
+          },
+          {
+            type: "sql_code",
+            text: "-- NOT EXISTS : la version sûre et recommandée de \"absent d'une autre table\"\nselect c.full_name from dim_customer c\nwhere not exists (\n  select 1 from fact_transactions t where t.customer_id = c.customer_id\n);",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Utilise EXISTS pour trouver les pays qui ont au moins un marchand de catégorie 'Santé'.",
+            starterQuery:
+              "select co.country_name from dim_country co\nwhere exists (\n  select 1 from dim_merchant m\n  where m.country_code = co.country_code and m.category = 'Santé'\n);",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Compare mentalement : `where merchant_id in (select ...)` matérialise une liste puis compare. `where exists (select 1 from ... where correlation)` teste juste \"y a-t-il au moins une ligne ?\" sans jamais avoir besoin de connaître la valeur elle-même — d'où le `select 1` conventionnel, qui signale explicitement que la valeur récupérée n'a aucune importance.",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "Une sous-requête corrélée se distingue d'une non-corrélée parce qu'elle :",
           options: [
             "S'exécute une seule fois pour toute la requête",
-            "Référence une colonne de la requête externe et se ré-exécute par ligne",
+            "Référence une colonne de la requête externe et se ré-exécute potentiellement par ligne",
             "Ne peut jamais être utilisée dans un SELECT",
           ],
           correct_index: 1,
           explain: "C'est cette dépendance ligne par ligne qui la rend potentiellement coûteuse à grande échelle.",
+        },
+        {
+          question: "Pourquoi préfère-t-on souvent EXISTS à IN pour simplement tester une présence ?",
+          options: [
+            "EXISTS peut s'arrêter dès la première correspondance trouvée (court-circuit), sans matérialiser toute une liste",
+            "IN est interdit avec des sous-requêtes",
+            "Aucune raison, c'est purement stylistique",
+          ],
+          correct_index: 0,
+          explain: "Et NOT EXISTS est en plus immunisé contre le piège du NULL qui affecte NOT IN.",
+        },
+      ],
+    },
+
+    {
+      number: "2.3.10",
+      slug: "ctes-with-atelier-synthese-chapitre-2-3",
+      title: "CTEs (WITH) et atelier de synthèse du chapitre",
+      parentSlug: "joins-ensembles-sous-requetes-ctes",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une CTE (Common Table Expression, introduite par WITH) nomme une sous-requête pour la rendre réutilisable et lisible — la brique qui permet de découper une requête complexe en étapes nommées, comme un petit programme.",
+          },
+          {
+            type: "sql_code",
+            text: "with volume_par_pays as (\n  select country_code, sum(amount_local) as volume\n  from fact_transactions\n  group by country_code\n)\nselect c.country_name, v.volume\nfrom volume_par_pays v\njoin dim_country c on c.country_code = v.country_code\norder by v.volume desc;",
+          },
+          { type: "h3", text: "Plusieurs CTEs chaînées" },
+          {
+            type: "sql_code",
+            text: "-- Une CTE peut référencer une CTE précédente — construire une requête étape par étape\nwith volume_par_pays as (\n  select country_code, sum(amount_local) as volume\n  from fact_transactions\n  group by country_code\n),\nvolume_moyen as (\n  select avg(volume) as moyenne from volume_par_pays\n)\nselect v.country_code, v.volume\nfrom volume_par_pays v, volume_moyen m\nwhere v.volume > m.moyenne\norder by v.volume desc;",
+          },
+          {
+            type: "callout",
+            title: "Astuce avancée à retenir : LATERAL",
+            text: "Un LATERAL JOIN permet à une sous-requête de référencer les colonnes de la ligne en cours de la table de gauche — utile pour \"le top 3 de chaque groupe\" ou l'as-of join que tu verras au Chapitre 2.4 pour la conversion de devises. Retiens le nom, il revient très vite.",
+          },
+          { type: "h3", text: "Atelier de synthèse — tout le chapitre en une session" },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.4 si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais choisir entre INNER, LEFT, FULL et CROSS JOIN selon ce que je veux garder ou exclure",
+              "Je sais utiliser un LEFT JOIN + IS NULL pour trouver ce qui manque",
+              "Je vérifie la cardinalité (unicité de la clé) avant de faire confiance à un agrégat après jointure",
+              "Je sais écrire un SELF JOIN pour une hiérarchie à un niveau",
+              "Je sais choisir entre sous-requête, EXISTS, et CTE selon la lisibilité et la performance recherchées",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Livrable — reconstitue la vue 360° d'un client AfriPay : son nom, son pays, le nombre total de ses transactions et le montant total dépensé, via une CTE. Commence par le client 1.",
+            starterQuery:
+              "with transactions_client as (\n  select customer_id, count(*) as nb_transactions, sum(amount_local) as total_depense\n  from fact_transactions\n  group by customer_id\n)\nselect c.full_name, co.country_name,\n  coalesce(t.nb_transactions, 0) as nb_transactions,\n  coalesce(t.total_depense, 0) as total_depense\nfrom dim_customer c\njoin dim_country co on co.country_code = c.country_code\nleft join transactions_client t on t.customer_id = c.customer_id\nwhere c.customer_id = 1;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel est l'avantage principal d'une CTE (WITH) par rapport à une sous-requête imbriquée dans le FROM ?",
+          options: [
+            "Elle est toujours plus rapide à l'exécution",
+            "Elle nomme chaque étape et se lit de haut en bas, plus lisible sur une requête à plusieurs étapes",
+            "Elle est obligatoire dès qu'on utilise GROUP BY",
+          ],
+          correct_index: 1,
+          explain: "Fonctionnellement équivalente à une sous-requête, mais bien plus claire à relire à plusieurs étapes.",
+        },
+        {
+          question: "Une CTE peut-elle référencer une autre CTE définie juste avant elle dans le même WITH ?",
+          options: ["Non, jamais", "Oui — c'est ce qui permet de chaîner les étapes d'une requête complexe", "Seulement avec LATERAL"],
+          correct_index: 1,
+          explain: "Chaque CTE peut s'appuyer sur les précédentes, comme des étapes successives d'un calcul.",
+        },
+        {
+          question: "Qu'est-ce qu'un LATERAL JOIN permet de faire que les jointures classiques ne permettent pas ?",
+          options: [
+            "Référencer, dans la sous-requête de droite, une colonne de la ligne en cours de la table de gauche",
+            "Joindre plus de deux tables à la fois",
+            "Trier automatiquement les résultats",
+          ],
+          correct_index: 0,
+          explain: "C'est ce qui rend possible \"le top 3 de chaque groupe\" ou l'as-of join du Chapitre 2.4.",
         },
       ],
     },
