@@ -2,6 +2,7 @@
 
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql, PostgreSQL } from "@codemirror/lang-sql";
+import { oneDark } from "@codemirror/theme-one-dark";
 
 export function SqlCode({ text, caption }: { text: string; caption?: string }) {
   return (
@@ -9,6 +10,7 @@ export function SqlCode({ text, caption }: { text: string; caption?: string }) {
       <CodeMirror
         value={text}
         editable={false}
+        theme={oneDark}
         extensions={[sql({ dialect: PostgreSQL }), EditorView.editable.of(false)]}
         basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
         style={{ fontSize: 13 }}

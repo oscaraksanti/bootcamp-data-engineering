@@ -3,6 +3,7 @@
 import { useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { sql, PostgreSQL } from "@codemirror/lang-sql";
+import { oneDark } from "@codemirror/theme-one-dark";
 import { useSandbox, type QueryResult } from "@/components/lesson/SandboxProvider";
 
 export function SqlSandbox({ prompt, starterQuery }: { prompt: string; starterQuery?: string }) {
@@ -28,6 +29,7 @@ export function SqlSandbox({ prompt, starterQuery }: { prompt: string; starterQu
         <CodeMirror
           value={query}
           onChange={setQuery}
+          theme={oneDark}
           extensions={[sql({ dialect: PostgreSQL })]}
           basicSetup={{ lineNumbers: true, foldGutter: false }}
           height="140px"
