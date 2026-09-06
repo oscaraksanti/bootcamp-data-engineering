@@ -4456,21 +4456,54 @@ async function main() {
     },
 
     // ============================================================
-    // 2.7 — DATA WAREHOUSE, PIPELINES & QUALITÉ
+    // CHAPITRE 2.7 — DATA WAREHOUSE, PIPELINES & QUALITÉ
     // ============================================================
     {
       number: "2.7",
       slug: "data-warehouse-pipelines-qualite",
       title: "Data Warehouse, pipelines & qualité",
-      duration_minutes: 300,
+      duration_minutes: 15,
       sort_order: 7,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Modéliser un schéma sur le papier est une chose. Construire le pipeline qui l'alimente chaque jour, sans jamais dupliquer ni perdre une donnée, en est une autre. C'est l'objet de cette leçon.",
+            text: "Modéliser un schéma sur le papier est une chose. Construire le pipeline qui l'alimente chaque jour, sans jamais dupliquer ni perdre une donnée, en est une autre. C'est l'objet de ce chapitre — et la porte d'entrée vers l'orchestration (Module 05) et la qualité des données en production (Module 09).",
           },
-          { type: "h3", text: "Architecture Medallion : Bronze → Silver → Gold" },
+          {
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
+            items: [
+              "2.7.1 — Architecture Medallion : Bronze → Silver → Gold",
+              "2.7.2 — La couche Bronze : ingérer sans juger la donnée",
+              "2.7.3 — Full load vs incremental load, watermarking",
+              "2.7.4 — Idempotence : le concept qui protège tout pipeline",
+              "2.7.5 — CDC via MERGE / ON CONFLICT en SQL pur",
+              "2.7.6 — Data Quality : NULL et doublons",
+              "2.7.7 — Data Quality : dates invalides et formats incohérents",
+              "2.7.8 — Data Quality : intégrité référentielle",
+              "2.7.9 — Construire la couche Silver : nettoyer raw_transactions_bronze",
+              "2.7.10 — La couche Gold et atelier de synthèse du chapitre",
+            ],
+          },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.7.1",
+      slug: "architecture-medallion-bronze-silver-gold",
+      title: "Architecture Medallion : Bronze → Silver → Gold",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 20,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "L'architecture Medallion organise un pipeline de données en trois couches successives, chacune avec une responsabilité claire — une donnée ne saute jamais directement de la source au reporting sans passer par ces étapes de confiance croissante.",
+          },
           {
             type: "medallion",
             layers: [
@@ -4479,50 +4512,20 @@ async function main() {
               { name: "Gold", description: "Modélisée pour le métier : le star schema AfriPay (fact_transactions + dimensions), prêt pour le reporting." },
             ],
           },
-          { type: "h3", text: "Full load vs incremental load, watermarking" },
-          {
-            type: "p",
-            text: "Un chargement complet (full load) retraite toutes les données à chaque exécution — simple, mais coûteux et lent à l'échelle. Un chargement incrémental ne traite que ce qui a changé depuis la dernière exécution, repéré par un watermark (typiquement la date/heure du dernier chargement réussi).",
-          },
-          {
-            type: "sql_code",
-            text: "-- Chargement incrémental : uniquement les lignes plus récentes que le dernier watermark\nselect * from raw_transactions_bronze\nwhere transaction_at_raw > (select coalesce(max(derniere_valeur), '1900-01-01') from watermarks where pipeline = 'bronze_to_silver');",
-          },
-          { type: "h3", text: "Idempotence — le concept qui protège tout le reste" },
-          {
-            type: "p",
-            text: "Un traitement est idempotent si le relancer plusieurs fois produit exactement le même résultat que le lancer une seule fois. Sans idempotence, un pipeline qui échoue à mi-chemin et qu'on relance duplique silencieusement des données.",
-          },
-          {
-            type: "thinking_prompt",
-            text: "Que se passe-t-il si ce pipeline s'arrête au milieu de son exécution ? Est-ce que je peux le relancer sans tout casser ? Si la réponse n'est pas un « oui » immédiat, le pipeline n'est pas encore prêt pour la production.",
-          },
-          { type: "h3", text: "CDC (Change Data Capture) via MERGE / ON CONFLICT en SQL pur" },
-          {
-            type: "sql_code",
-            text: "-- Chaque exécution ne fait qu'insérer les nouvelles lignes ou mettre à jour les existantes — jamais dupliquer\ninsert into fact_transactions (transaction_id, customer_id, merchant_id, country_code, transaction_at, amount_local, currency_code, channel, status)\nselect b.transaction_id::int, b.customer_id::int, b.merchant_id::int, b.country_code,\n       b.transaction_at_raw::timestamptz, b.amount_local::numeric, b.currency_code, b.channel, b.status\nfrom raw_transactions_bronze b\nwhere b.customer_id is not null\non conflict (transaction_id) do update\n  set status = excluded.status;",
-          },
-          { type: "h3", text: "Data Quality : NULL, doublons, dates invalides, intégrité référentielle" },
-          {
-            type: "sql_code",
-            text: "-- 1. Combien de lignes ont un customer_id ou un amount_local manquant ?\nselect count(*) filter (where customer_id is null) as customer_manquant,\n       count(*) filter (where amount_local is null) as montant_manquant\nfrom raw_transactions_bronze;\n\n-- 2. Doublons exacts dans l'extraction brute\nselect transaction_id, count(*) from raw_transactions_bronze group by transaction_id having count(*) > 1;\n\n-- 3. Formats de date incohérents (certains 'YYYY-MM-DD', d'autres 'DD/MM/YYYY', d'autres ISO complet)\nselect distinct transaction_at_raw from raw_transactions_bronze\nwhere transaction_at_raw !~ '^\\d{4}-\\d{2}-\\d{2}' limit 10;\n\n-- 4. Intégrité référentielle : merchant_id de la source qui n'existe pas dans dim_merchant\nselect distinct b.merchant_id\nfrom raw_transactions_bronze b\nleft join dim_merchant m on m.merchant_id = b.merchant_id::int\nwhere m.merchant_id is null;",
-          },
           {
             type: "callout",
-            title: "Ces quatre problèmes existent réellement dans nos données",
-            text: "raw_transactions_bronze n'est pas un exemple inventé pour l'occasion : elle contient de vrais NULL, de vrais doublons, trois formats de date différents, et quelques merchant_id orphelins — exactement ce qu'une extraction quotidienne mal maîtrisée produit dans une vraie entreprise.",
+            title: "Pourquoi ne pas nettoyer directement à l'ingestion",
+            text: "Conserver la donnée brute en Bronze (même sale) permet de rejouer tout le pipeline depuis le début si une règle de nettoyage se révèle plus tard erronée — sans Bronze, une erreur dans la logique de Silver serait irréversible : la donnée d'origine aurait déjà été perdue ou transformée.",
           },
-          { type: "h3", text: "Date dimension complète" },
           {
             type: "p",
-            text: "dim_date existe déjà, avec year/quarter/month/week/is_weekend pour chaque jour sur 2 ans — la brique qui évite de recalculer ces attributs dans chaque requête analytique.",
+            text: "Ce découpage en trois couches distinctes correspond très exactement à trois tables/zones du modèle AfriPay que tu connais déjà : raw_transactions_bronze (Bronze), une future table nettoyée (Silver, construite en 2.7.9), et fact_transactions + les dimensions (Gold, déjà en place depuis le Chapitre 2.6).",
           },
           {
             type: "sql_sandbox",
-            prompt:
-              "Livrable — construis la couche Silver : nettoie raw_transactions_bronze (retire les NULL sur customer_id, corrige les montants à virgule, garde uniquement les merchant_id valides), et compare le nombre de lignes conservées à l'original.",
+            prompt: "Compare le nombre de lignes en Bronze (brut) à celui déjà présent en Gold (fact_transactions).",
             starterQuery:
-              "select count(*) as lignes_brutes,\n  count(*) filter (\n    where customer_id is not null\n    and amount_local is not null\n    and merchant_id::int in (select merchant_id from dim_merchant)\n  ) as lignes_propres\nfrom raw_transactions_bronze;",
+              "select 'bronze (raw)' as couche, count(*) from raw_transactions_bronze\nunion all\nselect 'gold (fact)', count(*) from fact_transactions;",
           },
         ],
       },
@@ -4538,6 +4541,178 @@ async function main() {
           explain: "Bronze = brut, Silver = nettoyé/conforme, Gold = modélisé pour le business.",
         },
         {
+          question: "Pourquoi garder la donnée brute en Bronze plutôt que de la nettoyer immédiatement à l'ingestion ?",
+          options: [
+            "Ça n'a aucune importance",
+            "Pour pouvoir rejouer tout le pipeline depuis le début si une règle de nettoyage se révèle plus tard erronée",
+            "Parce que PostgreSQL l'exige",
+          ],
+          correct_index: 1,
+          explain: "Sans la donnée brute conservée, une erreur de logique en Silver deviendrait irréversible.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.2",
+      slug: "couche-bronze-ingerer-sans-juger",
+      title: "La couche Bronze : ingérer sans juger la donnée",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 20,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "La règle d'or de la couche Bronze : accepter la donnée telle quelle, sans aucune tentative de correction — même une donnée visiblement fausse doit être ingérée intacte, jamais rejetée ni corrigée silencieusement à ce stade.",
+          },
+          {
+            type: "sql_code",
+            text: "-- raw_transactions_bronze : TOUT est stocké en texte, y compris ce qui devrait être numérique ou une date\nselect column_name, data_type\nfrom information_schema.columns\nwhere table_name = 'raw_transactions_bronze'\norder by ordinal_position;",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi tout stocker en texte en Bronze, même les nombres et les dates",
+            text: "Si une valeur source est '12,5' (virgule) plutôt que '12.5' (point), une colonne numérique refuserait purement et simplement l'insertion — la ligne serait perdue avant même d'atteindre Bronze. En stockant tout en texte, Bronze accepte TOUT ce qui arrive de la source, permettant de diagnostiquer et corriger le problème en Silver, avec la donnée d'origine toujours disponible pour comparaison.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Observe des exemples réels de valeurs \"sales\" dans amount_local telles qu'elles arrivent en Bronze.",
+            starterQuery:
+              "select transaction_id, amount_local, transaction_at_raw\nfrom raw_transactions_bronze\nlimit 15;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Une équipe qui \"nettoie un peu\" dès l'ingestion perd la capacité de savoir, six mois plus tard, ce que la source a RÉELLEMENT envoyé ce jour-là — un problème classique de traçabilité (lineage) en data engineering, que la couche Bronze existe précisément pour éviter.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi raw_transactions_bronze stocke-t-elle presque toutes ses colonnes en type texte ?",
+          options: [
+            "Par erreur de conception",
+            "Pour accepter n'importe quelle valeur source sans risquer un rejet d'insertion, même si elle est mal formée",
+            "PostgreSQL ne supporte pas d'autres types pour cette table",
+          ],
+          correct_index: 1,
+          explain: "Un type strict (numeric, date) rejetterait une valeur mal formée avant même son arrivée en Bronze.",
+        },
+        {
+          question: "Que risque-t-on à nettoyer la donnée dès l'ingestion, sans passer par une couche Bronze brute ?",
+          options: [
+            "Rien de particulier",
+            "Perdre la capacité de savoir ce que la source a réellement envoyé (traçabilité/lineage)",
+            "Un gain de performance systématique",
+          ],
+          correct_index: 1,
+          explain: "C'est un problème classique de lineage — Bronze préserve la vérité d'origine pour tout diagnostic futur.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.3",
+      slug: "full-load-vs-incremental-watermarking",
+      title: "Full load vs incremental load, watermarking",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 25,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un chargement complet (full load) retraite TOUTES les données à chaque exécution — simple à raisonner, mais coûteux et de plus en plus lent à mesure que le volume grandit. Un chargement incrémental ne traite que ce qui a changé depuis la dernière exécution.",
+          },
+          {
+            type: "table",
+            headers: ["Stratégie", "Principe", "Coût"],
+            rows: [
+              ["Full load", "Retraite l'intégralité de la source à chaque exécution", "Simple, mais le temps d'exécution grandit avec le volume total"],
+              ["Incremental load", "Ne traite que les lignes nouvelles/modifiées depuis le dernier watermark", "Rapide et stable dans le temps, mais demande de suivre précisément ce qui a déjà été traité"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Chargement incrémental : uniquement les lignes plus récentes que le dernier watermark enregistré\nselect * from raw_transactions_bronze\nwhere transaction_at_raw > (\n  select coalesce(max(derniere_valeur), '1900-01-01')\n  from watermarks where pipeline = 'bronze_to_silver'\n);",
+          },
+          {
+            type: "callout",
+            title: "Le watermark doit être mis à jour APRÈS un traitement réussi, jamais avant",
+            text: "Si le watermark était avancé avant que le traitement ne se termine, un échec en cours de route ferait croire au pipeline que ces lignes ont déjà été traitées — elles seraient silencieusement perdues, jamais retraitées. Le watermark ne doit avancer qu'une fois le COMMIT du traitement confirmé.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Mettre à jour le watermark seulement APRÈS le traitement, dans la même transaction que l'écriture\nbegin;\n-- ... insertion des nouvelles lignes en Silver ...\ninsert into watermarks (pipeline, derniere_valeur)\nvalues ('bronze_to_silver', now())\non conflict (pipeline) do update set derniere_valeur = excluded.derniere_valeur;\ncommit;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Simule un chargement incrémental : sélectionne uniquement les transactions de raw_transactions_bronze plus récentes qu'une date donnée.",
+            starterQuery:
+              "select * from raw_transactions_bronze\nwhere transaction_at_raw > '2024-06-01'\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel est le principal inconvénient d'un chargement complet (full load) à mesure que le volume grandit ?",
+          options: [
+            "Il devient de plus en plus difficile à écrire",
+            "Le temps d'exécution grandit avec le volume total, même si seule une petite partie a réellement changé",
+            "Il ne fonctionne qu'une seule fois",
+          ],
+          correct_index: 1,
+          explain: "C'est ce qui justifie le passage à un chargement incrémental à mesure que les données grossissent.",
+        },
+        {
+          question: "Pourquoi le watermark doit-il être mis à jour APRÈS un traitement réussi, jamais avant ?",
+          options: [
+            "Ça n'a pas d'importance",
+            "Sinon un échec en cours de route ferait croire à tort que ces lignes ont déjà été traitées, les perdant silencieusement",
+            "PostgreSQL l'exige techniquement",
+          ],
+          correct_index: 1,
+          explain: "Avancer le watermark trop tôt casse la garantie qu'aucune donnée n'est perdue en cas d'échec partiel.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.4",
+      slug: "idempotence-concept-protege-pipeline",
+      title: "Idempotence : le concept qui protège tout pipeline",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 25,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un traitement est idempotent si le relancer plusieurs fois produit exactement le même résultat que le lancer une seule fois. Sans idempotence, un pipeline qui échoue à mi-chemin et qu'on relance duplique silencieusement des données — l'une des causes les plus fréquentes d'incidents de qualité de données en production.",
+          },
+          {
+            type: "sql_code",
+            text: "-- ❌ Non idempotent : relancer ce script deux fois insère DEUX FOIS les mêmes transactions\ninsert into fact_transactions (transaction_id, customer_id, amount_local)\nselect transaction_id::int, customer_id::int, amount_local::numeric\nfrom raw_transactions_bronze where customer_id is not null;\n\n-- ✅ Idempotent : ON CONFLICT garantit qu'une même transaction n'est jamais dupliquée, peu importe le nombre de relances\ninsert into fact_transactions (transaction_id, customer_id, amount_local)\nselect transaction_id::int, customer_id::int, amount_local::numeric\nfrom raw_transactions_bronze where customer_id is not null\non conflict (transaction_id) do update set amount_local = excluded.amount_local;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Que se passe-t-il si ce pipeline s'arrête au milieu de son exécution ? Est-ce que je peux le relancer sans tout casser ? Si la réponse n'est pas un « oui » immédiat, le pipeline n'est pas encore prêt pour la production — quelle que soit la qualité du reste de son code.",
+          },
+          {
+            type: "callout",
+            title: "L'idempotence n'est pas optionnelle en production",
+            text: "En production, un pipeline échoue tôt ou tard — un timeout réseau, une base momentanément indisponible, un déploiement en plein milieu d'une exécution planifiée. La question n'est jamais \"si\" mais \"quand\". Un pipeline idempotent transforme un échec en simple relance sans conséquence ; un pipeline non idempotent transforme le même échec en incident de données à corriger manuellement.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Exécute deux fois de suite la version idempotente ci-dessus et vérifie que le nombre de lignes ne double pas.",
+            starterQuery:
+              "insert into fact_transactions (transaction_id, customer_id, merchant_id, country_code, transaction_at, amount_local, currency_code, channel, status)\nselect b.transaction_id::int, b.customer_id::int, b.merchant_id::int, b.country_code,\n       b.transaction_at_raw::timestamptz, b.amount_local::numeric, b.currency_code, b.channel, b.status\nfrom raw_transactions_bronze b\nwhere b.customer_id is not null and b.merchant_id::int in (select merchant_id from dim_merchant)\non conflict (transaction_id) do update set status = excluded.status;\n\nselect count(*) from fact_transactions;",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "Un traitement idempotent garantit que :",
           options: [
             "Il s'exécute plus vite à chaque relance",
@@ -4548,6 +4723,55 @@ async function main() {
           explain: "C'est la propriété qui rend un pipeline sûr à relancer après un échec partiel.",
         },
         {
+          question: "Pourquoi l'idempotence n'est-elle pas un \"nice-to-have\" mais une nécessité en production ?",
+          options: [
+            "Parce qu'un pipeline échoue tôt ou tard, et un pipeline non idempotent transforme cet échec en incident de données",
+            "Parce que PostgreSQL refuse d'exécuter des pipelines non idempotents",
+            "Ce n'est utile qu'en environnement de test",
+          ],
+          correct_index: 0,
+          explain: "La question n'est jamais \"si\" un pipeline échouera, mais \"quand\" — l'idempotence détermine la gravité de cet échec.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.5",
+      slug: "cdc-merge-on-conflict-sql-pur",
+      title: "CDC via MERGE / ON CONFLICT en SQL pur",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 25,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Change Data Capture (CDC) désigne le fait de ne propager QUE les changements (insertions, mises à jour) plutôt que de retraiter l'intégralité d'une table à chaque fois. En SQL pur, INSERT ... ON CONFLICT est l'implémentation la plus directe de ce principe.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Chaque exécution ne fait qu'insérer les nouvelles lignes ou mettre à jour les existantes — jamais dupliquer\ninsert into fact_transactions (transaction_id, customer_id, merchant_id, country_code, transaction_at, amount_local, currency_code, channel, status)\nselect b.transaction_id::int, b.customer_id::int, b.merchant_id::int, b.country_code,\n       b.transaction_at_raw::timestamptz, b.amount_local::numeric, b.currency_code, b.channel, b.status\nfrom raw_transactions_bronze b\nwhere b.customer_id is not null\non conflict (transaction_id) do update\n  set status = excluded.status;",
+            caption: "Seul status est mis à jour ici — une transaction 'pending' devenue 'completed' entre deux exécutions doit se refléter, sans retraiter toute la ligne inutilement.",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi seulement status est mis à jour, pas toutes les colonnes",
+            text: "Une transaction déjà en Gold ne devrait normalement jamais changer de montant ou de client une fois créée — seul son statut évolue légitimement (pending → completed → failed). Limiter le DO UPDATE aux colonnes qui peuvent réellement changer est une protection supplémentaire : si la source envoyait accidentellement un montant corrompu pour une transaction déjà traitée, cette clause ON CONFLICT ne l'écraserait pas.",
+          },
+          {
+            type: "p",
+            text: "PostgreSQL 15+ propose aussi la commande MERGE, syntaxe SQL standard plus proche d'autres moteurs (SQL Server, Oracle) — ON CONFLICT reste cependant plus concis et largement suffisant pour la plupart des cas d'upsert.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Simule un changement de statut : une transaction bronze passe de 'pending' à 'completed', puis vérifie que seul son statut change en Gold.",
+            starterQuery:
+              "select transaction_id, status from fact_transactions\nwhere status = 'pending'\nlimit 10;",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "ON CONFLICT DO UPDATE, dans un chargement CDC, sert à :",
           options: [
             "Empêcher toute mise à jour",
@@ -4556,6 +4780,335 @@ async function main() {
           ],
           correct_index: 1,
           explain: "C'est le mécanisme SQL qui rend un chargement incrémental idempotent.",
+        },
+        {
+          question: "Pourquoi limiter le DO UPDATE à quelques colonnes précises (ex. status) plutôt qu'à toutes ?",
+          options: [
+            "Pour des raisons de performance uniquement",
+            "Pour éviter qu'une donnée déjà validée (montant, client) soit accidentellement écrasée par une valeur corrompue de la source",
+            "PostgreSQL limite le nombre de colonnes modifiables",
+          ],
+          correct_index: 1,
+          explain: "C'est une protection délibérée contre une régression accidentelle sur des colonnes qui ne devraient plus changer.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.6",
+      slug: "data-quality-null-doublons",
+      title: "Data Quality : NULL et doublons",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Avant de faire confiance à une extraction, il faut la mesurer. Deux vérifications systématiques : combien de valeurs manquent, et combien de lignes sont des doublons exacts.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Combien de lignes ont un customer_id ou un amount_local manquant ?\nselect count(*) filter (where customer_id is null) as customer_manquant,\n       count(*) filter (where amount_local is null) as montant_manquant,\n       count(*) as total_lignes\nfrom raw_transactions_bronze;",
+          },
+          {
+            type: "sql_code",
+            text: "-- Doublons exacts dans l'extraction brute — un même transaction_id apparaissant plusieurs fois\nselect transaction_id, count(*)\nfrom raw_transactions_bronze\ngroup by transaction_id\nhaving count(*) > 1;",
+          },
+          {
+            type: "callout",
+            title: "Ces problèmes existent réellement dans nos données",
+            text: "raw_transactions_bronze n'est pas un exemple inventé pour l'occasion : elle contient de vrais NULL et de vrais doublons — exactement ce qu'une extraction quotidienne mal maîtrisée produit dans une vraie entreprise, volontairement injecté dans ce jeu de données pour que tu t'entraînes sur un cas réaliste.",
+          },
+          {
+            type: "p",
+            text: "Un pourcentage de valeurs manquantes calculé une fois ne suffit pas — le suivre dans le temps (est-ce que ça empire ?) est ce qui distingue un contrôle qualité ponctuel d'une vraie surveillance de production, sujet approfondi au Module 09 (DataOps).",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Calcule le pourcentage de lignes avec un customer_id manquant dans raw_transactions_bronze.",
+            starterQuery:
+              "select round(100.0 * count(*) filter (where customer_id is null) / count(*), 2) as pct_manquant\nfrom raw_transactions_bronze;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle requête permet de détecter des doublons exacts sur transaction_id ?",
+          options: [
+            "select distinct transaction_id from raw_transactions_bronze",
+            "select transaction_id, count(*) from raw_transactions_bronze group by transaction_id having count(*) > 1",
+            "select * from raw_transactions_bronze limit 1",
+          ],
+          correct_index: 1,
+          explain: "GROUP BY + HAVING count(*) > 1 isole précisément les valeurs qui apparaissent plus d'une fois.",
+        },
+        {
+          question: "Pourquoi suivre le taux de valeurs manquantes DANS LE TEMPS plutôt qu'une seule fois ?",
+          options: [
+            "Ça n'apporte rien de plus",
+            "Pour détecter une dégradation progressive de la qualité de la source, pas seulement un état ponctuel",
+            "Parce qu'un contrôle ponctuel est interdit par les bonnes pratiques",
+          ],
+          correct_index: 1,
+          explain: "C'est ce qui distingue un contrôle qualité ponctuel d'une vraie surveillance de production (Module 09).",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.7",
+      slug: "data-quality-dates-invalides-formats",
+      title: "Data Quality : dates invalides et formats incohérents",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 25,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une extraction brute multi-source mélange souvent plusieurs formats de date pour le même champ — un problème invisible tant qu'on n'essaie pas de convertir explicitement la colonne en type date.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Formats de date incohérents (certains 'YYYY-MM-DD', d'autres 'DD/MM/YYYY', d'autres ISO complet)\nselect distinct transaction_at_raw from raw_transactions_bronze\nwhere transaction_at_raw !~ '^\\d{4}-\\d{2}-\\d{2}'\nlimit 10;",
+          },
+          {
+            type: "callout",
+            title: "🪤 Pourquoi un CAST direct vers timestamptz est risqué sur cette colonne",
+            text: "`transaction_at_raw::timestamptz` fonctionnera pour certaines lignes et échouera bruyamment (erreur d'exécution qui arrête TOUTE la requête) dès qu'il rencontre un format qu'il ne reconnaît pas. Une conversion prudente doit d'abord identifier les formats présents, avant de choisir une stratégie de parsing qui les gère tous — ou de rejeter explicitement les formats non reconnus vers une file d'erreurs plutôt que de planter tout le pipeline.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Une approche défensive : essayer plusieurs formats connus avec to_timestamp(), à la place d'un cast direct\nselect transaction_at_raw,\n  case\n    when transaction_at_raw ~ '^\\d{4}-\\d{2}-\\d{2}' then transaction_at_raw::timestamptz\n    when transaction_at_raw ~ '^\\d{2}/\\d{2}/\\d{4}' then to_timestamp(transaction_at_raw, 'DD/MM/YYYY')\n    else null  -- format non reconnu : NULL plutôt qu'un plantage, à investiguer séparément\n  end as transaction_at_parsee\nfrom raw_transactions_bronze\nlimit 20;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Compte combien de lignes ont un format de date non reconnu (candidat à investiguer avant le passage en Silver).",
+            starterQuery:
+              "select count(*) as format_non_reconnu\nfrom raw_transactions_bronze\nwhere transaction_at_raw !~ '^\\d{4}-\\d{2}-\\d{2}' and transaction_at_raw !~ '^\\d{2}/\\d{2}/\\d{4}';",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi un simple `colonne::timestamptz` est-il risqué sur une colonne multi-format ?",
+          options: [
+            "Ce n'est jamais risqué",
+            "Le cast échoue bruyamment (erreur) dès qu'il rencontre un format non reconnu, arrêtant toute la requête",
+            "PostgreSQL ignore silencieusement les formats non reconnus",
+          ],
+          correct_index: 1,
+          explain: "Une approche défensive (CASE + to_timestamp, ou NULL en repli) évite qu'une seule ligne mal formée fasse tout planter.",
+        },
+        {
+          question: "Que faire des lignes dont le format de date n'est reconnu par AUCUNE règle de parsing ?",
+          options: [
+            "Les ignorer silencieusement pour toujours",
+            "Les marquer (ex. NULL) et les investiguer séparément, plutôt que de planter tout le pipeline",
+            "Forcer un cast qui échouera",
+          ],
+          correct_index: 1,
+          explain: "Isoler l'anomalie permet de continuer à traiter le reste du batch tout en gardant trace du problème.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.8",
+      slug: "data-quality-integrite-referentielle",
+      title: "Data Quality : intégrité référentielle",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 25,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une extraction brute n'a généralement AUCUNE contrainte de clé étrangère appliquée (contrairement aux tables Gold, protégées par le moteur) — vérifier l'intégrité référentielle devient donc une étape manuelle explicite avant de faire confiance à une jointure.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Intégrité référentielle : merchant_id de la source qui n'existe pas dans dim_merchant\nselect distinct b.merchant_id\nfrom raw_transactions_bronze b\nleft join dim_merchant m on m.merchant_id = b.merchant_id::int\nwhere m.merchant_id is null;",
+          },
+          {
+            type: "callout",
+            title: "D'où viennent des merchant_id orphelins dans une vraie entreprise",
+            text: "Un marchand supprimé de dim_merchant après désactivation, un délai de synchronisation entre deux systèmes sources, ou simplement une erreur de saisie côté application — les causes réelles sont multiples, mais le symptôme (une clé étrangère qui ne référence plus rien) est toujours détectable de la même façon.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Quantifier l'ampleur du problème avant de décider quoi en faire\nselect\n  count(*) as total_lignes,\n  count(*) filter (\n    where merchant_id::int not in (select merchant_id from dim_merchant)\n  ) as lignes_merchant_orphelin\nfrom raw_transactions_bronze\nwhere merchant_id is not null;",
+          },
+          {
+            type: "p",
+            text: "Face à des lignes orphelines, trois options existent : les exclure (perte de données, mais Silver reste propre), les charger avec une valeur \"marchand inconnu\" par défaut (conserve le volume, perd le détail), ou bloquer le pipeline pour investigation manuelle (le plus sûr, le plus lent). Le bon choix dépend de la criticité métier — AfriPay choisit ici de les exclure en Silver (Leçon 2.7.9).",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie s'il existe des customer_id dans raw_transactions_bronze qui n'existent pas dans dim_customer.",
+            starterQuery:
+              "select distinct b.customer_id\nfrom raw_transactions_bronze b\nleft join dim_customer c on c.customer_id = b.customer_id::int\nwhere b.customer_id is not null and c.customer_id is null;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi l'intégrité référentielle doit-elle être vérifiée manuellement sur une extraction brute ?",
+          options: [
+            "Elle est automatiquement garantie par PostgreSQL",
+            "Une table brute n'a généralement aucune contrainte de clé étrangère appliquée, contrairement aux tables Gold",
+            "Ce n'est jamais nécessaire",
+          ],
+          correct_index: 1,
+          explain: "Les contraintes FK protègent les tables Gold, mais une extraction Bronze accepte tout, y compris des références invalides.",
+        },
+        {
+          question: "Face à des lignes avec un merchant_id orphelin, quelle option préserve le volume tout en documentant le problème ?",
+          options: [
+            "Les exclure silencieusement sans laisser de trace",
+            "Les charger avec une valeur 'marchand inconnu' par défaut plutôt que de les perdre complètement",
+            "Planter le pipeline systématiquement",
+          ],
+          correct_index: 1,
+          explain: "Le bon choix dépend du contexte métier — mais documenter le compromis choisi est toujours nécessaire.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.9",
+      slug: "construire-couche-silver-nettoyer-bronze",
+      title: "Construire la couche Silver : nettoyer raw_transactions_bronze",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 30,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Silver applique, en une seule requête cohérente, toutes les règles de qualité vues dans ce chapitre : retirer les NULL critiques, garder uniquement les clés étrangères valides, et convertir les types proprement.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Construction de la couche Silver : chaque règle de qualité appliquée explicitement\ncreate table if not exists stg_transactions_silver as\nselect\n  b.transaction_id::int as transaction_id,\n  b.customer_id::int as customer_id,\n  b.merchant_id::int as merchant_id,\n  b.country_code,\n  b.transaction_at_raw::timestamptz as transaction_at,\n  b.amount_local::numeric as amount_local,\n  b.currency_code,\n  b.channel,\n  b.status\nfrom raw_transactions_bronze b\nwhere b.customer_id is not null                                          -- retire les clients manquants (Leçon 2.7.6)\n  and b.amount_local is not null                                         -- retire les montants manquants (Leçon 2.7.6)\n  and b.transaction_at_raw ~ '^\\d{4}-\\d{2}-\\d{2}'                        -- garde uniquement les dates au format reconnu (Leçon 2.7.7)\n  and b.merchant_id::int in (select merchant_id from dim_merchant);       -- garde uniquement les merchant_id valides (Leçon 2.7.8)",
+          },
+          {
+            type: "callout",
+            title: "Chaque ligne de WHERE documente une décision de qualité, pas juste un filtre",
+            text: "Un futur lecteur de ce script doit comprendre POURQUOI chaque condition existe, pas seulement CE QU'elle fait — c'est pour ça que les commentaires inline référencent explicitement quelle règle de qualité chaque ligne applique.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Compare le nombre de lignes brutes au nombre de lignes qui passeraient les critères de la couche Silver.",
+            starterQuery:
+              "select count(*) as lignes_brutes,\n  count(*) filter (\n    where customer_id is not null\n    and amount_local is not null\n    and transaction_at_raw ~ '^\\d{4}-\\d{2}-\\d{2}'\n    and merchant_id::int in (select merchant_id from dim_merchant)\n  ) as lignes_propres_silver\nfrom raw_transactions_bronze;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Si 4% des lignes brutes sont rejetées en Silver, est-ce acceptable ? La réponse dépend entièrement du contexte métier — 4% de transactions financières perdues silencieusement peut être un incident grave, alors que 4% de logs d'un système non critique peut être un bruit de fond normal. Le chiffre seul ne dit rien sans ce contexte.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que fait la couche Silver de raw_transactions_bronze par rapport à Bronze ?",
+          options: [
+            "Elle garde exactement les mêmes lignes, sans aucun filtre",
+            "Elle applique les règles de qualité (NULL, formats, intégrité référentielle) pour ne garder que les lignes fiables",
+            "Elle supprime toutes les lignes"
+          ],
+          correct_index: 1,
+          explain: "C'est la définition même de Silver : nettoyée et conformée, prête à être jointe en confiance.",
+        },
+        {
+          question: "Pourquoi documenter dans le SQL POURQUOI chaque condition WHERE existe, pas seulement ce qu'elle fait ?",
+          options: [
+            "Pour respecter une convention arbitraire",
+            "Pour qu'un futur lecteur comprenne la décision de qualité derrière chaque filtre, pas juste son effet mécanique",
+            "PostgreSQL l'exige pour exécuter la requête",
+          ],
+          correct_index: 1,
+          explain: "Un WHERE sans contexte devient un mystère six mois plus tard — le commentaire préserve l'intention.",
+        },
+      ],
+    },
+
+    {
+      number: "2.7.10",
+      slug: "couche-gold-atelier-synthese-chapitre-2-7",
+      title: "La couche Gold et atelier de synthèse du chapitre",
+      parentSlug: "data-warehouse-pipelines-qualite",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "La couche Gold, tu la connais déjà : c'est le star schema AfriPay construit au Chapitre 2.6 (fact_transactions + dimensions). Ce qui change ici, c'est de comprendre COMMENT elle est alimentée depuis Silver — via exactement le chargement idempotent (CDC/ON CONFLICT) vu en 2.7.4-2.7.5.",
+          },
+          {
+            type: "p",
+            text: "dim_date, déjà en place avec year/quarter/month/week/is_weekend pour chaque jour sur 2 ans, illustre bien une dimension Gold : elle n'a besoin d'aucun pipeline récurrent, car son contenu est entièrement déterministe et peut être généré une fois pour plusieurs années à l'avance.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Explore dim_date pour confirmer qu'elle couvre bien 2 années complètes.",
+            starterQuery:
+              "select min(date) as premiere_date, max(date) as derniere_date, count(*) as nb_jours\nfrom dim_date;",
+          },
+          { type: "h3", text: "Atelier de synthèse — tout le chapitre en une session" },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.8 si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais expliquer la responsabilité de chacune des trois couches Bronze/Silver/Gold",
+              "Je sais pourquoi un pipeline DOIT être idempotent avant d'aller en production",
+              "Je sais écrire un ON CONFLICT DO UPDATE qui ne met à jour que les colonnes pertinentes",
+              "Je sais détecter des NULL, des doublons, des dates invalides et des références orphelines",
+              "Je sais documenter dans le SQL lui-même pourquoi chaque règle de qualité existe",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Livrable — construis la couche Silver complète (nettoie raw_transactions_bronze selon toutes les règles vues), et compare le nombre de lignes conservées à l'original.",
+            starterQuery:
+              "select count(*) as lignes_brutes,\n  count(*) filter (\n    where customer_id is not null\n    and amount_local is not null\n    and transaction_at_raw ~ '^\\d{4}-\\d{2}-\\d{2}'\n    and merchant_id::int in (select merchant_id from dim_merchant)\n  ) as lignes_propres\nfrom raw_transactions_bronze;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Comment la couche Gold (fact_transactions + dimensions) est-elle alimentée depuis Silver ?",
+          options: [
+            "Par un simple DELETE puis INSERT complet à chaque exécution",
+            "Via un chargement idempotent (CDC/ON CONFLICT) qui n'insère ou ne met à jour que ce qui a changé",
+            "Manuellement, ligne par ligne",
+          ],
+          correct_index: 1,
+          explain: "C'est la combinaison de tout ce chapitre : Bronze brut → Silver nettoyé → Gold via chargement idempotent.",
+        },
+        {
+          question: "Pourquoi dim_date n'a-t-elle pas besoin d'un pipeline récurrent quotidien ?",
+          options: [
+            "Parce qu'elle est vide",
+            "Parce que son contenu est entièrement déterministe et peut être généré à l'avance pour plusieurs années",
+            "Parce qu'elle n'est jamais utilisée"
+          ],
+          correct_index: 1,
+          explain: "Une date, son trimestre, son mois : rien de tout ça ne change une fois calculé — contrairement aux faits transactionnels.",
+        },
+        {
+          question: "Un traitement idempotent garantit que :",
+          options: [
+            "Il s'exécute plus vite à chaque relance",
+            "Le relancer plusieurs fois produit le même résultat qu'une seule exécution",
+            "Il ne peut jamais échouer",
+          ],
+          correct_index: 1,
+          explain: "C'est la propriété qui rend un pipeline sûr à relancer après un échec partiel — le fil conducteur de tout ce chapitre.",
         },
       ],
     },
