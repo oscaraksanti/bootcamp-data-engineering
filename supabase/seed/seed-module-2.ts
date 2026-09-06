@@ -5760,67 +5760,72 @@ async function main() {
     },
 
     // ============================================================
-    // 2.9 — DBT & ORCHESTRATION
+    // CHAPITRE 2.9 — DBT & ORCHESTRATION
     // ============================================================
     {
       number: "2.9",
       slug: "dbt-et-orchestration",
       title: "Analytics Engineering : dbt & orchestration",
-      duration_minutes: 180,
+      duration_minutes: 15,
       sort_order: 9,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Écrire du SQL qui fonctionne est une chose. Le rendre versionné, testé et documenté — pour qu'une équipe entière puisse s'y fier — en est une autre. C'est le rôle de dbt.",
+            text: "Écrire du SQL qui fonctionne est une chose. Le rendre versionné, testé et documenté — pour qu'une équipe entière puisse s'y fier sans relire chaque requête — en est une autre. C'est le rôle de dbt, et de l'orchestration qui l'entoure.",
           },
-          { type: "h3", text: "Pourquoi dbt" },
+          {
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
+            items: [
+              "2.9.1 — Pourquoi dbt : gérer le SQL comme du code",
+              "2.9.2 — Structure de projet dbt : staging, intermediate, marts",
+              "2.9.3 — ref() et le graphe de dépendances",
+              "2.9.4 — Tests dbt génériques : unique, not_null, relationships",
+              "2.9.5 — Tests dbt personnalisés (singular tests)",
+              "2.9.6 — Modèles incrémentaux dbt",
+              "2.9.7 — Documentation dbt : schema.yml et dbt docs",
+              "2.9.8 — Orchestration : le concept de DAG et de scheduling",
+              "2.9.9 — Alerting et échecs silencieux",
+              "2.9.10 — Périmètre du module et atelier de synthèse",
+            ],
+          },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.9.1",
+      slug: "pourquoi-dbt-sql-comme-du-code",
+      title: "Pourquoi dbt : gérer le SQL comme du code",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 20,
+      sort_order: 1,
+      body_content: {
+        blocks: [
           {
             type: "p",
-            text: "dbt transforme des fichiers .sql en modèles gérés comme du code : versionnés dans Git, testables automatiquement, documentés, avec un graphe de dépendances explicite entre eux.",
-          },
-          { type: "h3", text: "Structure de projet et références" },
-          {
-            type: "code",
-            text: "models/\n  staging/\n    stg_transactions.sql      -- nettoyage minimal depuis la source\n  intermediate/\n    int_transactions_usd.sql -- as-of join vers fx_rates\n  marts/\n    fct_transactions.sql     -- la fact table finale, prête pour le BI",
+            text: "dbt (data build tool) transforme des fichiers .sql en modèles gérés comme du code : versionnés dans Git, testables automatiquement, documentés, avec un graphe de dépendances explicite entre eux — exactement ce qui manque à un script SQL isolé exécuté manuellement.",
           },
           {
-            type: "sql_code",
-            text: "-- models/marts/fct_transactions.sql\nselect *\nfrom {{ ref('int_transactions_usd') }}\nwhere status = 'completed'",
-            caption: "ref() résout automatiquement la dépendance et l'ordre d'exécution — jamais de nom de table en dur.",
+            type: "callout",
+            title: "Ce que dbt NE fait PAS",
+            text: "dbt ne se connecte à aucune source externe et n'ingère rien — c'est un outil de TRANSFORMATION uniquement. Il prend des données déjà présentes dans l'entrepôt (le T de ELT) et les transforme en modèles propres et testés. L'ingestion (le EL) reste le travail d'autres outils, vus au Module 03.",
           },
-          { type: "h3", text: "Tests dbt" },
           {
-            type: "code",
-            text: "# models/marts/schema.yml\nmodels:\n  - name: fct_transactions\n    columns:\n      - name: transaction_id\n        tests: [unique, not_null]\n      - name: customer_id\n        tests:\n          - relationships:\n              to: ref('dim_customer')\n              field: customer_id",
-            caption: "unique/not_null/relationships couvrent exactement les problèmes de qualité vus en leçon 2.7 — mais automatisés, à chaque exécution.",
-          },
-          { type: "h3", text: "Modèles incrémentaux dbt" },
-          {
-            type: "sql_code",
-            text: "-- {{ config(materialized='incremental', unique_key='transaction_id') }}\nselect * from {{ source('raw', 'transactions_bronze') }}\n{% if is_incremental() %}\nwhere transaction_at_raw > (select max(transaction_at) from {{ this }})\n{% endif %}",
-            caption: "is_incremental() ne retraite que les nouvelles lignes lors des exécutions suivantes — le même principe que le watermarking de la leçon 2.7, mais géré par dbt.",
-          },
-          { type: "h3", text: "Orchestration : le concept" },
-          {
-            type: "timeline",
-            title: "DAG conceptuel — pipeline quotidien AfriPay",
-            steps: [
-              { time: "02h00", activity: "Extraction : copier les nouvelles lignes de la source vers raw_transactions_bronze" },
-              { time: "02h15", activity: "dbt run --select staging : nettoyage et conformité (Bronze → Silver)" },
-              { time: "02h30", activity: "dbt test : vérifier unique/not_null/relationships avant de continuer" },
-              { time: "02h35", activity: "dbt run --select marts : construction du star schema (Silver → Gold)" },
-              { time: "02h45", activity: "Si un test échoue : alerter l'équipe, ne PAS publier les données en aval" },
+            type: "table",
+            headers: ["Sans dbt", "Avec dbt"],
+            rows: [
+              ["Des scripts .sql isolés, exécutés manuellement ou par cron", "Des modèles versionnés, avec un ordre d'exécution géré automatiquement"],
+              ["Aucun test automatique de la qualité des résultats", "Des tests exécutés à chaque run (unique, not_null, relationships...)"],
+              ["Documentation à jour \"si quelqu'un pense à la maintenir\"", "Documentation générée directement depuis le code (dbt docs)"],
+              ["Dépendances entre requêtes gérées manuellement (\"lance ce script après celui-là\")", "Un graphe de dépendances explicite, résolu automatiquement via ref()"],
             ],
           },
           {
             type: "thinking_prompt",
-            text: "Si ce pipeline tourne chaque nuit sans surveillance humaine, qu'est-ce qui doit être automatisé — et qu'est-ce qui doit alerter quelqu'un ? Un test dbt qui échoue silencieusement est pire qu'un pipeline qui plante bruyamment : le second se voit, le premier corrompt la confiance dans les données sans que personne ne le sache.",
-          },
-          {
-            type: "callout",
-            title: "Ce que ce module ne couvre pas — et pourquoi",
-            text: "Airflow, le vrai outil d'orchestration de production, est tout le Module 05. Ici, tu comprends le CONCEPT (dépendances, scheduling, retry, alerte) pour ne pas arriver au Module 05 les mains vides — pas pour construire un Airflow complet en double.",
+            text: "Tout ce que tu as appris depuis le Chapitre 2.7 (Bronze/Silver/Gold, idempotence, data quality) reste vrai avec dbt — dbt ne remplace pas ces concepts, il leur donne un cadre professionnel : versionné, testé, documenté, reproductible par toute une équipe.",
           },
         ],
       },
@@ -5836,6 +5841,173 @@ async function main() {
           explain: "dbt n'ingère rien — il transforme, teste et documente ce qui est déjà dans l'entrepôt.",
         },
         {
+          question: "dbt se connecte-t-il directement à des sources de données externes (APIs, fichiers) ?",
+          options: [
+            "Oui, c'est sa fonction principale",
+            "Non — il transforme des données déjà présentes dans l'entrepôt, l'ingestion reste un autre outil",
+            "Seulement pour les fichiers CSV",
+          ],
+          correct_index: 1,
+          explain: "dbt couvre le T (transform) de ELT, pas le EL (extract-load), vu au Module 03.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.2",
+      slug: "structure-projet-dbt-staging-intermediate-marts",
+      title: "Structure de projet dbt : staging, intermediate, marts",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 20,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un projet dbt organise ses modèles SQL en dossiers qui reflètent directement l'architecture Medallion du Chapitre 2.7 — chaque couche a un rôle et un dossier dédié.",
+          },
+          {
+            type: "code",
+            text: "models/\n  staging/\n    stg_transactions.sql      -- nettoyage minimal depuis la source (≈ Silver, Chapitre 2.7)\n  intermediate/\n    int_transactions_usd.sql -- as-of join vers fx_rates (≈ transformation métier intermédiaire)\n  marts/\n    fct_transactions.sql     -- la fact table finale, prête pour le BI (≈ Gold, Chapitre 2.6)",
+          },
+          {
+            type: "table",
+            headers: ["Dossier dbt", "Rôle", "Équivalent Medallion"],
+            rows: [
+              ["staging", "Renommage de colonnes, cast de types, nettoyage minimal — un modèle par table source", "Silver (Chapitre 2.7)"],
+              ["intermediate", "Logique métier intermédiaire réutilisée par plusieurs marts (jointures, calculs communs)", "Entre Silver et Gold"],
+              ["marts", "Les tables finales consommées par le BI ou les analystes — souvent organisées par domaine métier", "Gold (Chapitre 2.6)"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Un modèle staging par table source, jamais plus",
+            text: "La convention dbt est stricte : chaque modèle staging correspond à EXACTEMENT une table source, avec un nommage cohérent (stg_<nom_source>). Toute logique de combinaison entre plusieurs sources appartient à la couche intermediate, jamais à staging — cette discipline évite que les modèles staging deviennent des fourre-tout impossibles à réutiliser proprement.",
+          },
+          {
+            type: "sql_code",
+            text: "-- models/staging/stg_transactions.sql — nettoyage minimal, un modèle pour une seule source\nselect\n  transaction_id::int as transaction_id,\n  customer_id::int as customer_id,\n  merchant_id::int as merchant_id,\n  transaction_at_raw::timestamptz as transaction_at,\n  amount_local::numeric as amount_local,\n  currency_code,\n  channel,\n  status\nfrom {{ source('raw', 'transactions_bronze') }}\nwhere customer_id is not null",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "À quoi correspond approximativement le dossier 'marts' dans l'architecture Medallion vue au Chapitre 2.7 ?",
+          options: ["Bronze", "Silver", "Gold"],
+          correct_index: 2,
+          explain: "marts contient les tables finales, prêtes pour le BI — exactement le rôle de la couche Gold.",
+        },
+        {
+          question: "Combien de tables sources un modèle staging doit-il typiquement couvrir ?",
+          options: ["Exactement une", "Toujours toutes les sources à la fois", "Un nombre variable selon la complexité"],
+          correct_index: 0,
+          explain: "Toute combinaison de plusieurs sources appartient à la couche intermediate, pas à staging.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.3",
+      slug: "ref-graphe-dependances",
+      title: "ref() et le graphe de dépendances",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 20,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "ref() est la fonction la plus importante de dbt — elle référence un AUTRE modèle dbt par son nom, jamais par un nom de table en dur, ce qui permet à dbt de construire automatiquement le graphe complet des dépendances entre modèles.",
+          },
+          {
+            type: "sql_code",
+            text: "-- models/marts/fct_transactions.sql\nselect *\nfrom {{ ref('int_transactions_usd') }}\nwhere status = 'completed'",
+            caption: "ref() résout automatiquement la dépendance et l'ordre d'exécution — jamais de nom de table en dur.",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi jamais de nom de table en dur",
+            text: "Écrire directement `from int_transactions_usd` (sans ref()) fonctionnerait, mais dbt ne saurait alors PAS que fct_transactions dépend de int_transactions_usd — il pourrait les exécuter dans le mauvais ordre, ou ne pas comprendre l'impact d'un changement sur int_transactions_usd. ref() rend cette dépendance explicite et exploitable par l'outil lui-même.",
+          },
+          {
+            type: "p",
+            text: "À partir de tous les ref() du projet, dbt construit un DAG (graphe orienté acyclique) complet — visible via `dbt docs generate` puis `dbt docs serve` — qui montre visuellement quel modèle dépend de quel autre, sur l'ensemble du projet.",
+          },
+          {
+            type: "sql_code",
+            text: "-- models/intermediate/int_transactions_usd.sql — dépend lui-même du staging via ref()\nselect\n  t.*,\n  fx.rate_to_usd,\n  round(t.amount_local / fx.rate_to_usd, 2) as amount_usd\nfrom {{ ref('stg_transactions') }} t\njoin lateral (\n  select rate_to_usd from {{ source('raw', 'fx_rates') }}\n  where currency_code = t.currency_code and rate_date <= t.transaction_at::date\n  order by rate_date desc limit 1\n) fx on true",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Reconnais-tu cette logique ? C'est exactement l'as-of join vu au Chapitre 2.4 — dbt ne réinvente pas le SQL, il orchestre et versionne le SQL que tu sais déjà écrire.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi utiliser ref('modele') plutôt que le nom de table en dur dans un modèle dbt ?",
+          options: [
+            "ref() est plus rapide à l'exécution",
+            "ref() rend la dépendance explicite, permettant à dbt de déterminer automatiquement l'ordre d'exécution",
+            "Le nom en dur est interdit par PostgreSQL"
+          ],
+          correct_index: 1,
+          explain: "Sans ref(), dbt ne peut ni connaître ni garantir l'ordre correct d'exécution entre modèles dépendants.",
+        },
+        {
+          question: "Que construit dbt à partir de l'ensemble des ref() d'un projet ?",
+          options: [
+            "Un rapport de facturation",
+            "Un DAG (graphe de dépendances) complet entre tous les modèles",
+            "Une sauvegarde de la base"
+          ],
+          correct_index: 1,
+          explain: "Visible via dbt docs — ce graphe montre quel modèle dépend de quel autre sur l'ensemble du projet.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.4",
+      slug: "tests-dbt-generiques",
+      title: "Tests dbt génériques : unique, not_null, relationships",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 25,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "dbt fournit quatre tests génériques prêts à l'emploi, déclarés en YAML plutôt qu'en SQL — ils couvrent exactement les problèmes de qualité manuels vus au Chapitre 2.7, mais automatisés et exécutés à chaque run.",
+          },
+          {
+            type: "code",
+            text: "# models/marts/schema.yml\nmodels:\n  - name: fct_transactions\n    columns:\n      - name: transaction_id\n        tests: [unique, not_null]\n      - name: customer_id\n        tests:\n          - relationships:\n              to: ref('dim_customer')\n              field: customer_id\n      - name: status\n        tests:\n          - accepted_values:\n              values: ['pending', 'completed', 'failed']",
+            caption: "unique/not_null/relationships couvrent exactement les problèmes de qualité vus au Chapitre 2.7 — mais automatisés, à chaque exécution.",
+          },
+          {
+            type: "table",
+            headers: ["Test générique", "Vérifie", "Équivalent SQL manuel"],
+            rows: [
+              ["unique", "Aucune valeur dupliquée dans la colonne", "GROUP BY ... HAVING count(*) > 1 (Leçon 2.7.6)"],
+              ["not_null", "Aucune valeur NULL dans la colonne", "count(*) filter (where col is null) (Leçon 2.7.6)"],
+              ["relationships", "Chaque valeur référence bien une ligne existante dans une autre table", "LEFT JOIN ... WHERE ... IS NULL (Leçon 2.7.8)"],
+              ["accepted_values", "La colonne ne contient que des valeurs d'une liste autorisée", "WHERE col NOT IN (liste autorisée)"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Le vrai gain : ces tests s'exécutent à CHAQUE run, automatiquement",
+            text: "La différence n'est pas le SQL sous-jacent (tu sais déjà l'écrire depuis le Chapitre 2.7) — c'est que `dbt test` exécute systématiquement ces vérifications à chaque déploiement, sans qu'un humain ait besoin de s'en souvenir. Un test qui échoue peut bloquer automatiquement la suite du pipeline (Leçon 2.9.9).",
+          },
+          {
+            type: "p",
+            text: "`dbt test` exécute tous les tests déclarés et rapporte précisément lesquels échouent — un test échoué produit un message clair identifiant le modèle et la colonne concernés, pas juste un échec générique.",
+          },
+        ],
+      },
+      quiz: [
+        {
           question: "Le test dbt `relationships` vérifie :",
           options: [
             "Qu'une colonne n'a jamais de valeurs dupliquées",
@@ -5843,8 +6015,357 @@ async function main() {
             "Que la table est vide",
           ],
           correct_index: 1,
-          explain: "C'est un test d'intégrité référentielle automatisé — équivalent à la requête manuelle de la leçon 2.7.",
+          explain: "C'est un test d'intégrité référentielle automatisé — équivalent à la requête manuelle du Chapitre 2.7.",
         },
+        {
+          question: "Quel est le principal avantage des tests dbt par rapport aux mêmes vérifications faites manuellement en SQL ?",
+          options: [
+            "Ils sont plus rapides à exécuter",
+            "Ils s'exécutent systématiquement à chaque run, sans qu'un humain ait besoin de s'en souvenir",
+            "Ils remplacent le besoin de comprendre le SQL sous-jacent",
+          ],
+          correct_index: 1,
+          explain: "Le SQL sous-jacent est le même que celui vu au Chapitre 2.7 — c'est l'automatisation systématique qui change tout.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.5",
+      slug: "tests-dbt-personnalises-singular",
+      title: "Tests dbt personnalisés (singular tests)",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 20,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Les quatre tests génériques (Leçon 2.9.4) ne couvrent pas toutes les règles métier possibles. Un test singulier (singular test) est un simple fichier .sql qui définit sa propre logique — le test ÉCHOUE si la requête renvoie AU MOINS UNE ligne.",
+          },
+          {
+            type: "sql_code",
+            text: "-- tests/assert_montants_positifs.sql\n-- Ce test échoue s'il existe ne serait-ce qu'UNE transaction avec un montant négatif ou nul\nselect transaction_id, amount_local\nfrom {{ ref('fct_transactions') }}\nwhere amount_local <= 0",
+          },
+          {
+            type: "callout",
+            title: "La logique inversée des tests dbt : succès = zéro ligne renvoyée",
+            text: "Contrairement à une requête SQL normale où on cherche des résultats, un test dbt réussit précisément quand il ne trouve AUCUNE ligne — la requête exprime littéralement \"les lignes qui ne devraient jamais exister\". C'est ce renversement logique qu'il faut intérioriser pour écrire un test singulier correct.",
+          },
+          {
+            type: "sql_code",
+            text: "-- tests/assert_conversion_usd_coherente.sql\n-- Vérifie qu'aucune transaction n'a un montant USD anormalement différent du montant local\nselect transaction_id, amount_local, amount_usd, rate_to_usd\nfrom {{ ref('int_transactions_usd') }}\nwhere amount_usd > amount_local  -- un montant USD ne devrait jamais dépasser le montant local, vu les devises AfriPay",
+          },
+          {
+            type: "p",
+            text: "Un test singulier est utile pour une règle métier spécifique à l'entreprise, qu'aucun des quatre tests génériques ne peut exprimer — typiquement une contrainte sur plusieurs colonnes à la fois, ou une logique conditionnelle propre au domaine.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Un test singulier dbt réussit quand sa requête renvoie :",
+          options: ["Au moins une ligne", "Exactement zéro ligne", "Un nombre pair de lignes"],
+          correct_index: 1,
+          explain: "La requête d'un test singulier exprime les lignes qui NE DEVRAIENT JAMAIS exister — succès = aucune trouvée.",
+        },
+        {
+          question: "Quand utiliser un test singulier plutôt qu'un test générique (unique, not_null...) ?",
+          options: [
+            "Toujours, les tests génériques sont dépréciés",
+            "Pour une règle métier spécifique qu'aucun test générique ne peut exprimer",
+            "Jamais, les tests singuliers ne fonctionnent pas en production",
+          ],
+          correct_index: 1,
+          explain: "Les tests génériques couvrent les cas standards ; les tests singuliers couvrent une logique métier propre au domaine.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.6",
+      slug: "modeles-incrementaux-dbt",
+      title: "Modèles incrémentaux dbt",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un modèle incrémental dbt applique le même principe que le watermarking vu au Chapitre 2.7 (full load vs incremental load), mais géré directement par dbt via une macro dédiée : is_incremental().",
+          },
+          {
+            type: "sql_code",
+            text: "-- models/staging/stg_transactions.sql\n{{ config(materialized='incremental', unique_key='transaction_id') }}\n\nselect * from {{ source('raw', 'transactions_bronze') }}\n{% if is_incremental() %}\nwhere transaction_at_raw > (select max(transaction_at) from {{ this }})\n{% endif %}",
+            caption: "is_incremental() ne retraite que les nouvelles lignes lors des exécutions suivantes — le même principe que le watermarking du Chapitre 2.7, mais géré par dbt.",
+          },
+          {
+            type: "callout",
+            title: "Comment is_incremental() se comporte différemment au premier run",
+            text: "Au tout premier `dbt run`, la table n'existe pas encore — is_incremental() renvoie FALSE, et la condition `{% if %}` est ignorée : TOUTES les lignes sont chargées (comportement identique à un full load). Aux exécutions suivantes, la table `{{ this }}` existe déjà — is_incremental() renvoie TRUE, et seules les lignes plus récentes que le max déjà chargé sont traitées.",
+          },
+          {
+            type: "p",
+            text: "`{{ this }}` est une référence spéciale dbt vers la table du modèle EN COURS de construction — utile précisément pour interroger \"ce qui a déjà été chargé\" avant de décider quoi charger de plus.",
+          },
+          {
+            type: "sql_code",
+            text: "-- unique_key='transaction_id' + ON CONFLICT géré automatiquement par dbt en arrière-plan\n-- garantit l'idempotence du modèle incrémental, exactement comme au Chapitre 2.7.4-2.7.5",
+          },
+          {
+            type: "thinking_prompt",
+            text: "unique_key dans la config incrémentale joue exactement le même rôle que la colonne cible d'un ON CONFLICT — dbt génère en interne la logique d'upsert appropriée pour l'entrepôt cible, sans que tu aies à l'écrire manuellement à chaque fois.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que se passe-t-il lors du tout premier `dbt run` d'un modèle incrémental ?",
+          options: [
+            "Une erreur, car la table n'existe pas encore",
+            "is_incremental() renvoie FALSE et toutes les lignes sont chargées (comme un full load)",
+            "Rien n'est chargé du tout"
+          ],
+          correct_index: 1,
+          explain: "La condition {% if is_incremental() %} n'est active qu'à partir du moment où la table cible existe déjà.",
+        },
+        {
+          question: "Quel est l'équivalent du unique_key d'un modèle incrémental dbt dans le SQL brut du Chapitre 2.7 ?",
+          options: [
+            "La colonne cible d'un ON CONFLICT, pour garantir l'idempotence",
+            "Le nom du schéma",
+            "Une simple colonne de tri"
+          ],
+          correct_index: 0,
+          explain: "dbt génère en interne la logique d'upsert correspondante à partir de unique_key.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.7",
+      slug: "documentation-dbt-schema-yml-docs",
+      title: "Documentation dbt : schema.yml et dbt docs",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 20,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "La documentation dbt vit à côté du code, dans les mêmes fichiers schema.yml qui déclarent les tests — elle ne se périme jamais silencieusement dans un wiki externe déconnecté du code réel.",
+          },
+          {
+            type: "code",
+            text: "# models/marts/schema.yml\nmodels:\n  - name: fct_transactions\n    description: \"Fact table transactionnelle AfriPay — une ligne par transaction, grain vérifié au Chapitre 2.6\"\n    columns:\n      - name: transaction_id\n        description: \"Identifiant unique de la transaction, clé de substitution\"\n        tests: [unique, not_null]\n      - name: amount_usd\n        description: \"Montant converti en USD via as-of join sur fx_rates (Chapitre 2.4)\"",
+          },
+          {
+            type: "callout",
+            title: "dbt docs generate + dbt docs serve",
+            text: "Ces deux commandes génèrent un site de documentation interactif complet : chaque modèle, sa description, ses colonnes, ses tests, ET le DAG visuel de dépendances (vu en Leçon 2.9.3) — navigable par toute l'équipe, sans jamais avoir à ouvrir le code SQL brut pour comprendre la structure du projet.",
+          },
+          {
+            type: "p",
+            text: "Documenter directement dans schema.yml a un avantage discipline : la description vit à CÔTÉ du test et de la colonne qu'elle décrit — un changement de colonne dans le SQL rappelle visuellement qu'il faut aussi mettre à jour sa description, contrairement à une documentation externe facilement oubliée.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Où vit la documentation d'un modèle dbt ?",
+          options: [
+            "Dans un wiki externe séparé du code",
+            "Dans le même fichier schema.yml que ses tests, à côté du code",
+            "Uniquement dans des commentaires SQL"
+          ],
+          correct_index: 1,
+          explain: "C'est ce qui évite qu'elle se périme silencieusement, déconnectée du code réel.",
+        },
+        {
+          question: "Que produit la combinaison `dbt docs generate` + `dbt docs serve` ?",
+          options: [
+            "Un export CSV des données",
+            "Un site de documentation interactif avec le DAG visuel de dépendances",
+            "Une sauvegarde de la base de données"
+          ],
+          correct_index: 1,
+          explain: "Navigable par toute l'équipe, incluant modèles, colonnes, tests, et graphe de dépendances.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.8",
+      slug: "orchestration-concept-dag-scheduling",
+      title: "Orchestration : le concept de DAG et de scheduling",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 25,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Orchestrer un pipeline, c'est décider QUAND chaque étape s'exécute, dans quel ORDRE, et QUOI FAIRE si une étape échoue — dbt gère l'intérieur des transformations, mais pas leur déclenchement dans le temps.",
+          },
+          {
+            type: "timeline",
+            title: "DAG conceptuel — pipeline quotidien AfriPay",
+            steps: [
+              { time: "02h00", activity: "Extraction : copier les nouvelles lignes de la source vers raw_transactions_bronze" },
+              { time: "02h15", activity: "dbt run --select staging : nettoyage et conformité (Bronze → Silver)" },
+              { time: "02h30", activity: "dbt test : vérifier unique/not_null/relationships avant de continuer" },
+              { time: "02h35", activity: "dbt run --select marts : construction du star schema (Silver → Gold)" },
+              { time: "02h45", activity: "Si un test échoue : alerter l'équipe, ne PAS publier les données en aval" },
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi \"dbt test\" doit bloquer la suite en cas d'échec",
+            text: "Si dbt test échoue à 02h30 mais que le pipeline continue quand même vers 02h35, des données potentiellement incorrectes (doublons, valeurs orphelines) seraient publiées en Gold — visibles par les analystes et les tableaux de bord AVANT même qu'un humain ne soit alerté. Un orchestrateur bien configuré arrête la chaîne au premier échec critique.",
+          },
+          {
+            type: "table",
+            headers: ["Concept d'orchestration", "Signifie"],
+            rows: [
+              ["DAG (graphe orienté acyclique)", "L'ensemble des étapes et leurs dépendances — jamais de boucle, toujours un ordre déterminé"],
+              ["Scheduling", "Quand chaque DAG se déclenche (ex. tous les jours à 02h00)"],
+              ["Retry", "Combien de fois retenter une étape échouée avant d'abandonner et d'alerter"],
+              ["Backfill", "Rejouer le DAG pour des dates passées (ex. après correction d'un bug)"],
+            ],
+          },
+          {
+            type: "thinking_prompt",
+            text: "Si ce pipeline tourne chaque nuit sans surveillance humaine, qu'est-ce qui doit être automatisé — et qu'est-ce qui doit alerter quelqu'un ? Un test dbt qui échoue silencieusement est pire qu'un pipeline qui plante bruyamment : le second se voit, le premier corrompt la confiance dans les données sans que personne ne le sache.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que garantit la structure en DAG (graphe orienté acyclique) d'un pipeline orchestré ?",
+          options: [
+            "Qu'il n'y a jamais de dépendance circulaire entre étapes",
+            "Qu'il s'exécute toujours plus vite",
+            "Qu'aucune étape ne peut jamais échouer"
+          ],
+          correct_index: 0,
+          explain: "\"Acyclique\" signifie précisément l'absence de boucle — un ordre d'exécution toujours déterminable.",
+        },
+        {
+          question: "Pourquoi un échec de dbt test doit-il bloquer la suite du pipeline plutôt que de continuer ?",
+          options: [
+            "Ça n'a aucune importance",
+            "Sinon des données potentiellement incorrectes seraient publiées en aval avant qu'un humain ne soit alerté",
+            "PostgreSQL l'exige techniquement"
+          ],
+          correct_index: 1,
+          explain: "C'est le principe du \"fail fast\" appliqué à la qualité des données — ne jamais laisser une erreur se propager silencieusement.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.9",
+      slug: "alerting-echecs-silencieux",
+      title: "Alerting et échecs silencieux",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 20,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Un pipeline qui plante bruyamment (erreur visible, statut 'failed' dans l'orchestrateur) est un problème facile à traiter — quelqu'un le voit tout de suite. Le vrai danger est l'échec SILENCIEUX : un pipeline qui \"réussit\" techniquement tout en produisant des données fausses ou incomplètes.",
+          },
+          {
+            type: "callout",
+            title: "🪤 Un échec silencieux typique en data engineering",
+            text: "Une source externe cesse d'envoyer des données (panne côté partenaire) — le pipeline d'extraction \"réussit\" en récupérant zéro nouvelle ligne, sans erreur. Les tables restent simplement figées à leur état d'hier. Sans une alerte spécifique sur \"volume anormalement bas\", personne ne s'en aperçoit avant qu'un analyste ne remarque, des jours plus tard, que le tableau de bord n'a plus bougé.",
+          },
+          {
+            type: "table",
+            headers: ["Type d'alerte", "Détecte"],
+            rows: [
+              ["Échec d'exécution", "Le pipeline a planté (erreur SQL, connexion perdue...)"],
+              ["Échec de test dbt", "Une règle de qualité déclarée est violée (unique, not_null, relationships...)"],
+              ["Anomalie de volume", "Le nombre de lignes chargées est anormalement bas ou élevé par rapport à l'historique"],
+              ["Anomalie de fraîcheur (freshness)", "La donnée source n'a pas été mise à jour depuis un délai anormalement long"],
+            ],
+          },
+          {
+            type: "p",
+            text: "dbt propose un test de fraîcheur intégré (`dbt source freshness`) qui vérifie précisément ce dernier point : combien de temps s'est écoulé depuis la dernière mise à jour d'une source, alertant si ce délai dépasse un seuil configuré.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "La détection d'anomalie de volume rejoint directement la détection d'anomalie vue au Chapitre 2.4 (window functions, stats par groupe) — comparer le volume du jour à la moyenne des jours précédents est littéralement le même calcul, appliqué à la SANTÉ du pipeline plutôt qu'aux transactions elles-mêmes.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi un échec silencieux est-il plus dangereux qu'un pipeline qui plante bruyamment ?",
+          options: [
+            "Ce n'est pas plus dangereux",
+            "Personne n'est alerté — le pipeline \"réussit\" tout en produisant des données fausses ou figées",
+            "Un échec silencieux corrige automatiquement le problème"
+          ],
+          correct_index: 1,
+          explain: "C'est le cas le plus insidieux : la confiance dans les données se corrompt sans qu'aucune erreur ne le signale.",
+        },
+        {
+          question: "Que vérifie un test de fraîcheur (freshness) dans dbt ?",
+          options: [
+            "Que les données sont triées",
+            "Combien de temps s'est écoulé depuis la dernière mise à jour d'une source",
+            "Que la table est vide"
+          ],
+          correct_index: 1,
+          explain: "Utile pour détecter qu'une source a cessé d'envoyer des données, sans qu'aucune erreur d'exécution ne se produise.",
+        },
+      ],
+    },
+
+    {
+      number: "2.9.10",
+      slug: "perimetre-module-atelier-synthese-chapitre-2-9",
+      title: "Périmètre du module et atelier de synthèse",
+      parentSlug: "dbt-et-orchestration",
+      duration_minutes: 25,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "callout",
+            title: "Ce que ce module ne couvre pas — et pourquoi",
+            text: "Airflow, le vrai outil d'orchestration de production, est tout le Module 05. Ici, tu comprends le CONCEPT (DAG, dépendances, scheduling, retry, alerte) pour ne pas arriver au Module 05 les mains vides — pas pour construire un Airflow complet en double. De même, dbt Cloud, les macros Jinja avancées, et les packages dbt communautaires restent hors du périmètre volontaire de ce chapitre d'introduction.",
+          },
+          {
+            type: "p",
+            text: "Ce chapitre a couvert pourquoi dbt existe (2.9.1), sa structure de projet (2.9.2), ref() et le graphe de dépendances (2.9.3), les tests génériques et singuliers (2.9.4-2.9.5), les modèles incrémentaux (2.9.6), la documentation (2.9.7), et le concept d'orchestration avec ses alertes (2.9.8-2.9.9).",
+          },
+          { type: "h3", text: "Atelier de synthèse — tout le chapitre en une session" },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.10 (Capstone) si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais expliquer pourquoi dbt gère le SQL \"comme du code\", pas juste comme des requêtes",
+              "Je sais organiser un projet dbt en staging/intermediate/marts",
+              "Je sais pourquoi ref() est préférable à un nom de table en dur",
+              "Je sais déclarer les quatre tests génériques dbt et écrire un test singulier simple",
+              "Je sais faire la différence entre un échec bruyant et un échec silencieux, et pourquoi le second est plus dangereux",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Livrable — simule ce que ferait le test générique 'relationships' de dbt sur customer_id : trouve les transactions dont le client n'existe pas dans dim_customer.",
+            starterQuery:
+              "select t.transaction_id, t.customer_id\nfrom fact_transactions t\nleft join dim_customer c on c.customer_id = t.customer_id\nwhere c.customer_id is null;",
+          },
+        ],
+      },
+      quiz: [
         {
           question: "Pourquoi ce module ne construit-il pas un pipeline Airflow complet ?",
           options: [
@@ -5854,6 +6375,16 @@ async function main() {
           ],
           correct_index: 1,
           explain: "Ce module donne le concept d'orchestration ; le Module 05 construit le vrai outil en profondeur.",
+        },
+        {
+          question: "Ce chapitre a-t-il couvert dbt Cloud et les packages communautaires dbt en détail ?",
+          options: [
+            "Oui, intégralement",
+            "Non — volontairement hors périmètre de ce chapitre d'introduction",
+            "Ce sujet n'existe pas dans dbt"
+          ],
+          correct_index: 1,
+          explain: "Le périmètre de ce chapitre reste les fondations : structure de projet, ref(), tests, modèles incrémentaux, orchestration conceptuelle.",
         },
       ],
     },
