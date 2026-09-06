@@ -48,97 +48,865 @@ async function main() {
 
   const lessons = [
     // ============================================================
-    // 2.1 — REMISE EN CONTEXTE & ENVIRONNEMENT
+    // CHAPITRE 2.1 — REMISE EN CONTEXTE & ENVIRONNEMENT
     // ============================================================
     {
       number: "2.1",
       slug: "remise-en-contexte-environnement-postgresql",
       title: "Remise en contexte & environnement PostgreSQL",
-      duration_minutes: 90,
+      duration_minutes: 15,
       sort_order: 1,
       body_content: {
         blocks: [
           {
             type: "p",
-            text: "Au Module 01, tu as vu qu'un système de données traverse cinq étapes : sources, ingestion, stockage, transformation, consommation. Ce module s'installe dans les deux étapes du milieu — stockage et transformation — et y reste pendant 40 heures, parce que c'est là que se joue la moitié du travail réel d'un data engineer. Une fois ce module terminé, tu sauras concevoir la structure de données elle-même, pas seulement écrire des requêtes dedans.",
+            text: "Au Module 01, tu as vu qu'un système de données traverse cinq étapes : sources, ingestion, stockage, transformation, consommation. Ce module s'installe dans les deux étapes du milieu — stockage et transformation — et y reste pendant 40 heures, parce que c'est là que se joue la moitié du travail réel d'un data engineer.",
           },
           {
-            type: "callout",
-            title: "Pourquoi PostgreSQL, et pas un autre moteur",
-            text: "PostgreSQL est la base de données la plus utilisée et la plus demandée en entreprise depuis plusieurs années consécutives (enquêtes Stack Overflow) — y compris dans les fintechs africaines. C'est aussi, très concrètement, ce qui fait tourner DataLendo : la plateforme sur laquelle tu apprends est elle-même une application PostgreSQL. Tout ce que tu vas apprendre ici n'est pas théorique.",
+            type: "p",
+            text: "Ce chapitre pose les fondations avant d'écrire la moindre requête sérieuse : pourquoi PostgreSQL, comment installer ton environnement de travail, comment fonctionne le bac à sable de DataLendo, et le contexte complet du fil rouge AfriPay que tu vas construire pendant tout ce module — et retrouver dans les modules suivants.",
           },
-          { type: "h3", text: "Installer son environnement pour les sessions en direct" },
           {
-            type: "list",
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
             items: [
-              "PostgreSQL 16+ en local — postgresql.org ou via un gestionnaire de paquets (Homebrew sur Mac, apt sur Linux, l'installeur officiel sur Windows)",
-              "VS Code (déjà installé au Module 01) + l'extension « PostgreSQL » ou « SQLTools » avec son driver PostgreSQL — pour écrire et exécuter du SQL directement dans l'éditeur",
-              "pgAdmin (optionnel) — une interface graphique utile pour explorer visuellement un schéma, en complément de VS Code, pas à sa place",
+              "2.1.1 — Rappel express : où se situe ce module dans le métier de data engineer",
+              "2.1.2 — Pourquoi PostgreSQL, face à MySQL, SQL Server, Oracle et au NoSQL",
+              "2.1.3 — Installation PostgreSQL + VS Code",
+              "2.1.4 — Anatomie d'un serveur PostgreSQL : cluster, base, schéma, table, rôle",
+              "2.1.5 — Naviguer en ligne de commande avec psql",
+              "2.1.6 — VS Code + SQLTools au quotidien, organiser ses fichiers SQL",
+              "2.1.7 — Le bac à sable DataLendo, sous le capot",
+              "2.1.8 — Découvrir AfriPay : le contexte métier du fil rouge",
+              "2.1.9 — Explorer un schéma inconnu, méthodiquement",
+              "2.1.10 — Atelier de synthèse du chapitre",
+            ],
+          },
+        ],
+      },
+      quiz: [],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.1 — RAPPEL EXPRESS
+    // ------------------------------------------------------------
+    {
+      number: "2.1.1",
+      slug: "rappel-express-pipeline-data",
+      title: "Rappel express : où se situe ce module",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 20,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Le Module 01 a posé un schéma en cinq étapes que tout système de données traverse : sources → ingestion → stockage → transformation → consommation. Chaque module de ce bootcamp approfondit une ou plusieurs de ces étapes. Ce Module 02 s'installe dans les deux du milieu, stockage et transformation, et n'en bouge plus pendant 40 heures.",
+          },
+          {
+            type: "table",
+            headers: ["Étape du pipeline", "Ce module s'en occupe ?", "Module qui l'approfondit"],
+            rows: [
+              ["Sources", "Non", "Module 03 — Ingestion & APIs"],
+              ["Ingestion", "Non", "Module 03 — Ingestion & APIs"],
+              ["Stockage", "Oui — cœur du module", "Module 06 — Lakehouse (à plus grande échelle)"],
+              ["Transformation", "Oui — cœur du module", "Module 05 — Airflow (orchestrée), Module 09 — DataOps"],
+              ["Consommation", "Effleuré (dbt, data marts)", "Module 09 — Analytics Engineering avancé"],
             ],
           },
           {
-            type: "code",
-            text: "# Vérifier que PostgreSQL tourne\npsql --version\n\n# Se connecter à une base locale\npsql -U postgres -d postgres",
+            type: "callout",
+            title: "Pourquoi SQL reste la compétence n°1",
+            text: "Avant Spark, avant Kafka, avant le cloud : un data engineer qui ne sait pas modéliser et interroger des données proprement en SQL ne peut pas faire le reste correctement non plus. Chaque moteur de traitement massif — Spark SQL, BigQuery, Snowflake — expose in fine une interface SQL. Ce module n'est donc pas \"une étape parmi d'autres\", c'est la fondation de tout ce qui suit.",
+          },
+          {
+            type: "p",
+            text: "Concrètement, à la fin de ce module, tu sauras concevoir la structure de données elle-même (modélisation), pas seulement écrire des requêtes dedans — et tu auras un projet complet, AfriPay Data Platform, à montrer en entretien.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Retiens cette phrase pour la suite du chapitre : tout ce que tu vas apprendre ici, tu vas immédiatement le pratiquer sur AfriPay — jamais un exercice jetable et déconnecté du reste.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Sur quelles étapes du pipeline data ce Module 02 se concentre-t-il ?",
+          options: ["Sources et ingestion", "Stockage et transformation", "Consommation uniquement"],
+          correct_index: 1,
+          explain: "Le Module 02 s'installe dans les deux étapes du milieu du pipeline vu au Module 01.",
+        },
+        {
+          question: "Pourquoi SQL reste-t-il la compétence n°1 d'un data engineer, même à l'ère de Spark et du cloud ?",
+          options: [
+            "Parce que SQL est plus simple à apprendre",
+            "Parce que la plupart des moteurs modernes (Spark SQL, BigQuery, Snowflake) exposent une interface SQL",
+            "Parce que Spark et Kafka ne fonctionnent pas sans SQL",
+          ],
+          correct_index: 1,
+          explain: "SQL est la couche d'interface commune à presque tous les moteurs de données modernes — la maîtriser transfère partout.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.2 — POURQUOI POSTGRESQL
+    // ------------------------------------------------------------
+    {
+      number: "2.1.2",
+      slug: "pourquoi-postgresql-vs-alternatives",
+      title: "Pourquoi PostgreSQL, face à MySQL, SQL Server, Oracle et au NoSQL",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 30,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Choisir un moteur de base de données n'est jamais neutre — chacun a des forces réelles. Voici pourquoi PostgreSQL est le standard de ce bootcamp, et ce que tu perdrais avec un autre choix.",
+          },
+          {
+            type: "table",
+            headers: ["Moteur", "Licence", "Points forts", "Où il domine en entreprise"],
+            rows: [
+              ["PostgreSQL", "Open source (BSD)", "Extensible (JSONB, extensions), window functions et CTEs très complets, gratuit à tout niveau d'échelle", "Fintech, startups, la majorité des nouveaux projets analytiques"],
+              ["MySQL / MariaDB", "Open source (GPL)", "Très répandu historiquement, simple à opérer", "Applications web CRUD classiques, WordPress/e-commerce"],
+              ["SQL Server", "Propriétaire (Microsoft)", "Intégration profonde à l'écosystème Microsoft, outils BI natifs", "Grandes entreprises déjà sur stack Microsoft"],
+              ["Oracle Database", "Propriétaire, coût élevé", "Fonctionnalités entreprise avancées (partitionnement, RAC)", "Grands comptes historiques (banques, télécoms)"],
+              ["SQLite", "Open source, embarqué", "Zéro serveur, un seul fichier", "Applications mobiles, prototypage local"],
+              ["MongoDB (NoSQL)", "Open source / SaaS", "Schéma flexible, scaling horizontal natif", "Documents très hétérogènes, pas de besoin de jointures fortes"],
+            ],
+          },
+          { type: "h3", text: "SQL (relationnel) vs NoSQL — la vraie question à se poser" },
+          {
+            type: "p",
+            text: "Ce n'est pas \"lequel est meilleur\" mais \"quelle est la forme de mes données et mes garanties nécessaires\". AfriPay a des transactions qui doivent référencer un client et un marchand qui existent réellement (intégrité référentielle), des montants qui ne doivent jamais se dupliquer silencieusement (ACID), et des relations complexes entre 7 tables — le terrain naturel d'un moteur relationnel.",
+          },
+          {
+            type: "list",
+            items: [
+              "Choisis relationnel (PostgreSQL...) quand les relations entre entités sont fortes et que la cohérence des données est critique — cas de presque tout le reporting financier et opérationnel",
+              "Choisis NoSQL (MongoDB, Cassandra...) quand le schéma change constamment, que le volume d'écriture est massif et distribué, ou que les documents sont naturellement imbriqués et rarement joints entre eux",
+              "En pratique, une entreprise data-mature utilise souvent les deux, chacun sur son cas d'usage — ce n'est pas un choix exclusif",
+            ],
           },
           {
             type: "callout",
-            title: "Tu n'as rien à installer pour t'exercer sur DataLendo",
-            text: "Chaque atelier de ce module s'exécute directement dans ton navigateur, dans un vrai moteur PostgreSQL (pas une imitation) préchargé avec le jeu de données AfriPay. L'installation ci-dessus sert pour les sessions live et pour ton futur poste — pas un prérequis pour avancer ici.",
+            title: "Pourquoi PostgreSQL précisément, et pas juste \"un relationnel\"",
+            text: "PostgreSQL est la base de données la plus utilisée et la plus désirée en entreprise depuis plusieurs années consécutives dans les enquêtes développeurs (Stack Overflow) — y compris dans les fintechs africaines. Il combine la rigueur relationnelle avec des fonctionnalités qu'on associe d'habitude au NoSQL (JSONB indexable et interrogeable, comme tu l'as vu avec channel_metadata). C'est aussi, très concrètement, ce qui fait tourner DataLendo elle-même.",
           },
-          { type: "h3", text: "AfriPay : le fil rouge de tout le bootcamp" },
+          {
+            type: "thinking_prompt",
+            text: "En entretien, on te demandera peut-être \"pourquoi PostgreSQL plutôt que MongoDB pour ce projet ?\". La bonne réponse n'est jamais \"parce que c'est ce que j'ai appris\" — c'est \"parce que mes données ont telle forme et telles garanties de cohérence à respecter\".",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel critère doit surtout guider le choix entre un moteur relationnel et NoSQL ?",
+          options: [
+            "Lequel est le plus récent",
+            "La forme des données et les garanties de cohérence nécessaires",
+            "Lequel a le plus de utilisateurs sur GitHub",
+          ],
+          correct_index: 1,
+          explain: "Relations fortes et cohérence critique → relationnel. Schéma très flexible et écriture massive distribuée → souvent NoSQL.",
+        },
+        {
+          question: "Qu'est-ce qui distingue PostgreSQL d'un moteur relationnel plus classique comme SQL Server ou Oracle, pour ce bootcamp ?",
+          options: [
+            "Il est propriétaire et payant",
+            "Il est open source, gratuit à toute échelle, et combine rigueur relationnelle et fonctionnalités type NoSQL (JSONB)",
+            "Il ne supporte pas les jointures",
+          ],
+          correct_index: 1,
+          explain: "PostgreSQL est gratuit, extensible, et gère nativement des types avancés comme JSONB — un vrai avantage pratique.",
+        },
+        {
+          question: "Pourquoi AfriPay est-elle un bon cas d'usage pour un moteur relationnel plutôt que NoSQL ?",
+          options: [
+            "Parce que les transactions doivent référencer des clients/marchands existants et garantir la cohérence des montants",
+            "Parce que NoSQL n'existe pas encore en Afrique",
+            "Parce qu'il n'y a qu'une seule table",
+          ],
+          correct_index: 0,
+          explain: "Intégrité référentielle et ACID sont exactement les garanties dont une fintech a besoin.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.3 — INSTALLATION
+    // ------------------------------------------------------------
+    {
+      number: "2.1.3",
+      slug: "installation-postgresql-vscode",
+      title: "Installation PostgreSQL + VS Code",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 30,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "callout",
+            title: "Tu n'as rien à installer pour t'exercer sur DataLendo",
+            text: "Chaque atelier de ce module s'exécute directement dans ton navigateur, dans un vrai moteur PostgreSQL (pas une imitation) préchargé avec le jeu de données AfriPay — voir la leçon 2.1.7. L'installation ci-dessous sert pour les sessions live et pour ton futur poste de travail, pas pour avancer dans ce module.",
+          },
+          { type: "h3", text: "1. Installer PostgreSQL 16+" },
+          {
+            type: "code",
+            text: "# macOS (Homebrew)\nbrew install postgresql@16\nbrew services start postgresql@16\n\n# Linux (Debian/Ubuntu)\nsudo apt update && sudo apt install postgresql postgresql-contrib\n\n# Windows\n# Télécharger l'installeur officiel sur postgresql.org et suivre l'assistant",
+          },
+          {
+            type: "sql_code",
+            text: "-- Vérifier que PostgreSQL tourne\npsql --version\n\n-- Se connecter à la base par défaut\npsql -U postgres -d postgres",
+            caption: "Si psql se connecte et affiche une invite postgres=#, l'installation est réussie.",
+          },
+          { type: "h3", text: "2. VS Code + extension SQL" },
+          {
+            type: "list",
+            items: [
+              "VS Code (déjà installé au Module 01)",
+              "Extension « SQLTools » + son driver « SQLTools PostgreSQL/Redshift Driver » — pour écrire et exécuter du SQL directement dans l'éditeur, avec autocomplétion",
+              "pgAdmin (optionnel) — une interface graphique utile pour explorer visuellement un schéma, en complément de VS Code, pas à sa place",
+            ],
+          },
+          { type: "h3", text: "3. Configurer une connexion dans SQLTools" },
+          {
+            type: "checklist",
+            title: "Paramètres de connexion à renseigner",
+            items: [
+              "Connection name : afripay-local (un nom parlant, tu en auras plusieurs plus tard)",
+              "Server / Host : localhost",
+              "Port : 5432 (port par défaut de PostgreSQL)",
+              "Database : postgres (ou une base que tu crées ensuite, ex. afripay)",
+              "Username : postgres (ou ton utilisateur système sur Mac/Linux)",
+              "Password : celui défini à l'installation — jamais commité en clair dans un fichier versionné",
+            ],
+          },
+          {
+            type: "callout",
+            title: "Sécurité dès le premier jour",
+            text: "Ne mets jamais un mot de passe de base de données en clair dans un fichier .sql suivi par Git. Utilise les fichiers de connexion locaux de SQLTools (non versionnés) ou des variables d'environnement — un réflexe que tu garderas toute ta carrière.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Pourquoi installer un vrai PostgreSQL local alors que le bac à sable du navigateur suffit pour ce module ? Parce que les sessions en direct du bootcamp l'utilisent, et parce que c'est exactement l'environnement que tu retrouveras en poste — apprendre à s'y connecter maintenant évite une friction plus tard.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Sur quel port PostgreSQL écoute-t-il par défaut ?",
+          options: ["3306", "5432", "8080"],
+          correct_index: 1,
+          explain: "5432 est le port par défaut de PostgreSQL (3306 est celui de MySQL).",
+        },
+        {
+          question: "Faut-il installer PostgreSQL en local pour avancer dans les leçons de ce module ?",
+          options: ["Oui, obligatoirement dès la 2.1.3", "Non — le bac à sable DataLendo tourne dans le navigateur", "Seulement à partir du Module 05"],
+          correct_index: 1,
+          explain: "L'installation locale sert aux sessions live et à ton futur poste ; le bac à sable suffit pour pratiquer ici.",
+        },
+        {
+          question: "Où faut-il stocker un mot de passe de base de données dans un projet versionné par Git ?",
+          options: [
+            "Directement en clair dans le fichier .sql",
+            "Jamais en clair dans un fichier suivi par Git — via une config locale non versionnée ou des variables d'environnement",
+            "Dans le README du projet",
+          ],
+          correct_index: 1,
+          explain: "Un secret commité en clair dans Git reste dans l'historique même après suppression — un réflexe de sécurité de base.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.4 — ANATOMIE D'UN SERVEUR POSTGRESQL
+    // ------------------------------------------------------------
+    {
+      number: "2.1.4",
+      slug: "anatomie-serveur-postgresql",
+      title: "Anatomie d'un serveur PostgreSQL : cluster, base, schéma, table, rôle",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 30,
+      sort_order: 4,
+      body_content: {
+        blocks: [
           {
             type: "p",
-            text: "AfriPay est une fintech pan-africaine fictive de mobile money et paiement marchand, présente dans 8 pays. Tu vas la modéliser, construire son entrepôt de données, l'optimiser, puis — dans les modules suivants — l'ingérer en temps réel, la traiter à l'échelle avec Spark, la migrer en lakehouse. Un seul projet qui grandit, pas dix exercices déconnectés.",
+            text: "Avant d'écrire une seule requête, il faut savoir où elle s'exécute. PostgreSQL organise tout selon une hiérarchie précise — comprendre ces niveaux évite des questions comme \"pourquoi ma table n'apparaît pas ?\" qui sont en réalité des questions de portée, pas de syntaxe.",
           },
+          {
+            type: "table",
+            headers: ["Niveau", "C'est quoi", "Exemple AfriPay"],
+            rows: [
+              ["Cluster (instance)", "Un serveur PostgreSQL en cours d'exécution, qui peut héberger plusieurs bases", "Ton serveur local, ou l'instance Supabase qui héberge DataLendo"],
+              ["Database (base)", "Un espace de données isolé — une connexion cible toujours une seule base à la fois", "afripay (dédiée au projet fil rouge)"],
+              ["Schema (schéma)", "Un espace de noms à l'intérieur d'une base, pour organiser les tables", "public (par défaut) ; on pourrait imaginer staging, marts en avançant dans le module"],
+              ["Table", "La structure qui stocke réellement les lignes", "fact_transactions, dim_customer..."],
+              ["Rôle (role)", "Un compte de connexion avec des permissions — peut être une personne ou un service", "un rôle app_readonly pour un tableau de bord, un rôle admin pour les migrations"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Le piège classique du schéma implicite",
+            text: "Quand tu écris `select * from dim_customer` sans préciser de schéma, PostgreSQL cherche dans le search_path — par défaut `public`. Si un jour deux schémas contiennent chacun une table dim_customer, la requête ne sera plus ambiguë pour toi mais elle le sera pour le moteur : toujours savoir quel schéma est réellement interrogé.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Le schéma courant et le search_path actif\nshow search_path;\n\n-- Qualifier explicitement une table par son schéma\nselect * from public.dim_customer limit 5;",
+          },
+          { type: "h3", text: "Rôles et permissions — le strict nécessaire" },
+          {
+            type: "list",
+            items: [
+              "Un rôle peut avoir l'attribut LOGIN (une vraie connexion) ou non (un simple groupe de permissions)",
+              "GRANT accorde une permission (SELECT, INSERT, UPDATE...) à un rôle sur un objet",
+              "Principe du moindre privilège : un service qui ne fait que lire des rapports ne devrait jamais avoir de droit d'écriture",
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Un rôle en lecture seule sur le schéma public (principe du moindre privilège)\ncreate role app_readonly login password '...';\ngrant usage on schema public to app_readonly;\ngrant select on all tables in schema public to app_readonly;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "DataLendo utilise Row Level Security (RLS) sur Supabase — un mécanisme qui filtre les lignes visibles par rôle, plus fin qu'un simple GRANT au niveau table. Retiens le principe ici ; tu le retrouveras en pratique dans des modules plus avancés sur la gouvernance des données.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Une connexion PostgreSQL cible :",
+          options: ["Toutes les bases du cluster à la fois", "Une seule base à la fois", "Un seul schéma pour tout le cluster"],
+          correct_index: 1,
+          explain: "Il faut changer de connexion (ou utiliser dblink/fdw) pour accéder à une autre base du même cluster.",
+        },
+        {
+          question: "Quel est le schéma utilisé par défaut quand aucun n'est précisé dans une requête ?",
+          options: ["default", "public", "main"],
+          correct_index: 1,
+          explain: "public est le schéma par défaut de toute nouvelle base PostgreSQL.",
+        },
+        {
+          question: "Le principe du moindre privilège recommande :",
+          options: [
+            "Donner tous les droits à tous les rôles pour simplifier",
+            "N'accorder à un rôle que les permissions strictement nécessaires à son usage",
+            "Ne jamais créer de rôle en dehors du superutilisateur",
+          ],
+          correct_index: 1,
+          explain: "Un rôle de lecture seule ne devrait par exemple jamais avoir de droit d'écriture.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.5 — PSQL
+    // ------------------------------------------------------------
+    {
+      number: "2.1.5",
+      slug: "naviguer-en-ligne-de-commande-psql",
+      title: "Naviguer en ligne de commande avec psql",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 30,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "psql est le client officiel en ligne de commande de PostgreSQL. Même si tu passes le plus clair de ton temps dans VS Code, savoir naviguer au clavier en psql est indispensable en session live et en diagnostic rapide sur un serveur distant.",
+          },
+          { type: "h3", text: "Les commandes meta essentielles (elles commencent par un backslash)" },
+          {
+            type: "table",
+            headers: ["Commande", "Effet"],
+            rows: [
+              ["\\l", "Lister toutes les bases du cluster"],
+              ["\\c afripay", "Se connecter à la base afripay"],
+              ["\\dt", "Lister les tables du schéma courant"],
+              ["\\d fact_transactions", "Décrire la structure d'une table (colonnes, types, contraintes)"],
+              ["\\d+ fact_transactions", "Idem, avec plus de détails (taille, description)"],
+              ["\\du", "Lister les rôles et leurs attributs"],
+              ["\\dn", "Lister les schémas de la base courante"],
+              ["\\x", "Basculer l'affichage en mode étendu (une colonne par ligne — utile pour les lignes larges)"],
+              ["\\timing", "Afficher le temps d'exécution de chaque requête"],
+              ["\\q", "Quitter psql"],
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- Une session psql typique pour explorer AfriPay\n\\c afripay\n\\dt\n\\d fact_transactions\nselect count(*) from fact_transactions;",
+          },
+          {
+            type: "callout",
+            title: "Important : ces commandes n'existent que dans psql",
+            text: "\\dt, \\d, \\l ne sont PAS du SQL — ce sont des raccourcis propres au client psql, qui traduisent en interne des requêtes sur le catalogue système. Dans le bac à sable de DataLendo (un moteur SQL pur, pas un terminal psql), l'équivalent est d'interroger directement information_schema — exactement ce que tu feras en leçon 2.1.9.",
+          },
+          {
+            type: "sql_code",
+            text: "-- L'équivalent SQL pur de \\dt (fonctionne partout, y compris dans le bac à sable)\nselect table_name from information_schema.tables\nwhere table_schema = 'public'\norder by table_name;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Exécute la requête équivalente à \\dt ci-dessus pour lister toutes les tables du jeu de données AfriPay.",
+            starterQuery:
+              "select table_name from information_schema.tables\nwhere table_schema = 'public'\norder by table_name;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle commande psql liste les tables du schéma courant ?",
+          options: ["\\l", "\\dt", "\\du"],
+          correct_index: 1,
+          explain: "\\l liste les bases, \\du les rôles, \\dt les tables.",
+        },
+        {
+          question: "Les commandes psql comme \\dt fonctionnent-elles dans le bac à sable SQL de DataLendo ?",
+          options: [
+            "Oui, exactement pareil",
+            "Non — ce sont des raccourcis du client psql, pas du SQL ; il faut interroger information_schema à la place",
+            "Seulement \\q fonctionne",
+          ],
+          correct_index: 1,
+          explain: "Le bac à sable exécute du SQL pur — l'équivalent portable de \\dt est une requête sur information_schema.tables.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.6 — VS CODE + SQLTOOLS AU QUOTIDIEN
+    // ------------------------------------------------------------
+    {
+      number: "2.1.6",
+      slug: "vscode-sqltools-organisation-fichiers-sql",
+      title: "VS Code + SQLTools au quotidien, organiser ses fichiers SQL",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une fois connecté (leçon 2.1.3), l'enjeu devient l'hygiène de travail : comment organiser tes fichiers SQL pour qu'un projet reste lisible après cent requêtes, et pas seulement après les dix premières.",
+          },
+          { type: "h3", text: "Exécuter une requête depuis VS Code" },
+          {
+            type: "list",
+            items: [
+              "Sélectionner la requête (ou se placer dessus) puis Cmd+Enter / Ctrl+Enter (raccourci SQLTools) pour l'exécuter sur la connexion active",
+              "Le résultat s'affiche dans un panneau dédié, exportable en CSV pour une vérification rapide",
+              "Changer de connexion active dans la barre de statut avant d'exécuter — l'erreur la plus fréquente d'un débutant est d'exécuter une requête sur la mauvaise base",
+            ],
+          },
+          { type: "h3", text: "Organiser ses fichiers SQL comme un projet, pas comme un brouillon" },
+          {
+            type: "code",
+            text: "afripay-sql/\n├── 01_exploration/\n│   ├── 01_lister_tables.sql\n│   └── 02_compter_lignes.sql\n├── 02_modelisation/\n│   └── star_schema.sql\n├── 03_optimisation/\n│   └── explain_avant_apres.sql\n└── README.md",
+          },
+          {
+            type: "list",
+            items: [
+              "Un fichier = un objectif clair (pas un fourre-tout de 50 requêtes sans rapport)",
+              "Un commentaire en en-tête de fichier expliquant l'intention, pas juste la syntaxe",
+              "Une numérotation qui reflète l'ordre logique d'exécution, utile en session live comme en revue de code",
+            ],
+          },
+          {
+            type: "sql_code",
+            text: "-- 02_modelisation/star_schema.sql\n-- Objectif : vérifier le grain de fact_transactions avant de documenter le star schema (leçon 2.6)\nselect transaction_id, count(*)\nfrom fact_transactions\ngroup by transaction_id\nhaving count(*) > 1;",
+          },
+          {
+            type: "callout",
+            title: "Un fichier .sql versionné est un artefact professionnel",
+            text: "En entretien ou en poste, ce sont ces fichiers qu'un collègue relira. Un dossier structuré et commenté raconte une histoire ; un fichier scratch.sql de 800 lignes n'en raconte aucune.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Cette discipline te semble peut-être excessive pour un simple exercice — mais c'est exactement la structure que tu réutiliseras telle quelle pour le capstone (leçon 2.10) et pour le dépôt final AfriPay Data Platform.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle est l'erreur la plus fréquente d'un débutant avec SQLTools dans VS Code ?",
+          options: [
+            "Oublier le point-virgule",
+            "Exécuter une requête sur la mauvaise connexion/base active",
+            "Ne pas utiliser assez de majuscules",
+          ],
+          correct_index: 1,
+          explain: "Toujours vérifier la connexion active dans la barre de statut avant d'exécuter, surtout avec plusieurs bases configurées.",
+        },
+        {
+          question: "Pourquoi structurer ses fichiers SQL en dossiers numérotés par objectif plutôt qu'un seul gros fichier ?",
+          options: [
+            "Parce que PostgreSQL l'exige techniquement",
+            "Parce que ça rend le projet lisible et relisible par quelqu'un d'autre (ou par toi, plus tard)",
+            "Parce que les fichiers volumineux font planter VS Code",
+          ],
+          correct_index: 1,
+          explain: "La discipline de fichiers est une compétence professionnelle, pas une contrainte technique du moteur.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.7 — LE BAC À SABLE DATALENDO
+    // ------------------------------------------------------------
+    {
+      number: "2.1.7",
+      slug: "bac-a-sable-datalendo-sous-le-capot",
+      title: "Le bac à sable DataLendo, sous le capot",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 25,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Tu vas utiliser le bac à sable intégré à chaque leçon pendant tout ce module. Comprendre ce qui tourne réellement derrière change la façon dont tu lui fais confiance.",
+          },
+          {
+            type: "callout",
+            title: "Ce n'est pas une imitation de SQL — c'est un vrai PostgreSQL",
+            text: "Le bac à sable embarque PGlite : PostgreSQL compilé en WebAssembly, exécuté entièrement dans ton navigateur. Ce n'est pas un moteur SQL simplifié ni une base type SQLite qui \"ressemble\" à PostgreSQL — c'est le même moteur, avec ses vraies fonctionnalités : window functions, JSONB, CTEs récursives, tout ce que tu vas apprendre fonctionne à l'identique en local.",
+          },
+          { type: "h3", text: "Où vivent tes données" },
+          {
+            type: "list",
+            items: [
+              "Le jeu de données AfriPay est chargé une première fois dans IndexedDB, le stockage local de ton navigateur — rien n'est envoyé à un serveur",
+              "Tes requêtes s'exécutent localement, sans latence réseau : le \"▶ Exécuter\" ne fait pas d'appel à DataLendo, il parle à un PostgreSQL qui tourne dans ton onglet",
+              "Ton avancement (données modifiées, tables créées dans un atelier) persiste entre deux visites sur le même navigateur, tant que tu ne vides pas les données du site",
+            ],
+          },
+          {
+            type: "callout",
+            title: "Le bouton « Réinitialiser les données »",
+            text: "Si un atelier te fait modifier des données (UPDATE, DELETE, ALTER TABLE) et que tu veux repartir de zéro, ce bouton recharge le jeu de données AfriPay dans son état d'origine — utile après avoir \"cassé\" volontairement quelque chose pour apprendre.",
+          },
+          {
+            type: "list",
+            items: [
+              "Limite : le bac à sable est mono-utilisateur et local à ton navigateur — il ne simule pas la concurrence de plusieurs connexions (tu verras ça avec de vraies bases plus tard)",
+              "Limite : pas d'accès réseau depuis le bac à sable — impossible d'y installer une extension PostgreSQL qui appelle l'extérieur",
+              "Ce que ça n'empêche pas : tout le SQL de ce module — y compris les CTEs récursives et le partitionnement — fonctionne normalement",
+            ],
+          },
+          {
+            type: "thinking_prompt",
+            text: "Ton environnement local (leçon 2.1.3) et le bac à sable de DataLendo font tourner exactement le même moteur. En production, ce sera aussi vrai entre ton poste et le serveur : si ça marche ici, ça doit marcher là-bas, sans mauvaise surprise de version.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Le bac à sable SQL de DataLendo fait tourner :",
+          options: [
+            "Un moteur SQL simplifié propre à DataLendo",
+            "Un vrai PostgreSQL compilé en WebAssembly (PGlite), exécuté dans le navigateur",
+            "Une base SQLite qui imite la syntaxe PostgreSQL",
+          ],
+          correct_index: 1,
+          explain: "PGlite est un vrai PostgreSQL — window functions, JSONB, CTEs récursives fonctionnent à l'identique.",
+        },
+        {
+          question: "Où sont stockées les données du bac à sable pendant que tu travailles ?",
+          options: [
+            "Sur les serveurs de DataLendo",
+            "Localement dans ton navigateur (IndexedDB)",
+            "Nulle part, tout est recalculé à chaque requête",
+          ],
+          correct_index: 1,
+          explain: "Tout s'exécute et se stocke localement — aucun appel réseau vers DataLendo pour exécuter une requête.",
+        },
+        {
+          question: "Que fait le bouton « Réinitialiser les données » ?",
+          options: [
+            "Il supprime ton compte",
+            "Il recharge le jeu de données AfriPay dans son état d'origine",
+            "Il déconnecte ton navigateur d'internet",
+          ],
+          correct_index: 1,
+          explain: "Utile après avoir volontairement modifié des données dans un atelier (UPDATE, ALTER TABLE...).",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.8 — DÉCOUVRIR AFRIPAY
+    // ------------------------------------------------------------
+    {
+      number: "2.1.8",
+      slug: "decouvrir-afripay-contexte-metier",
+      title: "Découvrir AfriPay : le contexte métier du fil rouge",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 30,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "AfriPay est une fintech pan-africaine fictive de mobile money et paiement marchand. Tu vas la modéliser, construire son entrepôt de données, l'optimiser — puis, dans les modules suivants, l'ingérer en temps réel, la traiter à l'échelle avec Spark, la migrer en lakehouse. Un seul projet qui grandit, pas dix exercices déconnectés.",
+          },
+          { type: "h3", text: "Le métier, en trois rôles" },
+          {
+            type: "table",
+            headers: ["Rôle", "Ce qu'il fait", "Table associée"],
+            rows: [
+              ["Client (customer)", "Envoie de l'argent, paie un marchand, reçoit un transfert via mobile money", "dim_customer (200 clients)"],
+              ["Marchand (merchant)", "Reçoit des paiements pour des biens ou services", "dim_merchant (50 marchands, par catégorie)"],
+              ["Agent", "Fait le lien physique cash ↔ mobile money (dépôt/retrait), organisé en hiérarchie régionale", "dim_agent (responsables régionaux → agents de terrain → sous-agents)"],
+            ],
+          },
+          { type: "h3", text: "Les 8 pays du fil rouge" },
+          {
+            type: "table",
+            headers: ["Pays", "Devise", "Région"],
+            rows: [
+              ["République Démocratique du Congo", "CDF", "Afrique centrale"],
+              ["Congo-Brazzaville", "XAF", "Afrique centrale"],
+              ["Côte d'Ivoire", "XOF", "Afrique de l'Ouest"],
+              ["Sénégal", "XOF", "Afrique de l'Ouest"],
+              ["Mali", "XOF", "Afrique de l'Ouest"],
+              ["Kenya", "KES", "Afrique de l'Est"],
+              ["Maroc", "MAD", "Afrique du Nord"],
+              ["Algérie", "DZD", "Afrique du Nord"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi plusieurs devises dès le premier jour",
+            text: "Trois pays partagent le XOF, mais les cinq autres ont chacun leur propre devise. Ce détail, en apparence anodin, va justifier toute la leçon 2.4 sur l'as-of join : convertir un montant correctement suppose de connaître le taux de change EN VIGUEUR à la date de la transaction, pas le taux d'aujourd'hui.",
+          },
+          { type: "h3", text: "Les 8 tables du jeu de données" },
           {
             type: "table",
             headers: ["Table", "Contenu"],
             rows: [
               ["dim_country", "8 pays, devise, région, fuseau horaire"],
               ["dim_customer", "200 clients AfriPay"],
-              ["dim_merchant", "50 marchands partenaires"],
-              ["dim_agent", "réseau d'agents mobile money (hiérarchie)"],
-              ["dim_date", "calendrier complet, 2 ans"],
-              ["fx_rates", "taux de change quotidiens par devise"],
-              ["fact_transactions", "5 000 transactions"],
-              ["raw_transactions_bronze", "extraction volontairement sale, pour la leçon 2.7"],
+              ["dim_merchant", "50 marchands partenaires, par catégorie (Alimentation, Transport...)"],
+              ["dim_agent", "réseau d'agents mobile money, hiérarchie manager_id"],
+              ["dim_date", "calendrier complet, 2 ans, avec year/quarter/month/is_weekend"],
+              ["fx_rates", "taux de change quotidiens par devise vers l'USD"],
+              ["fact_transactions", "5 000 transactions (montant, canal, statut, métadonnées JSON)"],
+              ["raw_transactions_bronze", "extraction volontairement sale (NULL, doublons, dates incohérentes) — pour la leçon 2.7"],
             ],
           },
           {
             type: "sql_sandbox",
             prompt:
-              "Premier contact : compte le nombre de lignes de chaque table du jeu de données AfriPay. Modifie la requête pour explorer une autre table si tu veux.",
+              "Premier contact : compte le nombre de lignes de chaque table du jeu de données AfriPay.",
             starterQuery:
               "select 'dim_country' as table_name, count(*) from dim_country\nunion all select 'dim_customer', count(*) from dim_customer\nunion all select 'dim_merchant', count(*) from dim_merchant\nunion all select 'dim_agent', count(*) from dim_agent\nunion all select 'fact_transactions', count(*) from fact_transactions\nunion all select 'raw_transactions_bronze', count(*) from raw_transactions_bronze;",
-          },
-          {
-            type: "thinking_prompt",
-            text: "Ton environnement local et le bac à sable de DataLendo font tourner exactement le même moteur. En production, ce sera aussi vrai entre ton poste et le serveur : si ça marche ici, ça doit marcher là-bas, sans mauvaise surprise de version.",
           },
         ],
       },
       quiz: [
         {
-          question: "Pourquoi ce module utilise-t-il PostgreSQL plutôt qu'un autre moteur ?",
-          options: [
-            "C'est le seul moteur qui existe",
-            "C'est le plus utilisé en entreprise, et c'est ce qui fait tourner DataLendo elle-même",
-            "Il n'y a aucune raison particulière",
-          ],
-          correct_index: 1,
-          explain: "PostgreSQL domine les enquêtes développeurs depuis plusieurs années, et DataLendo elle-même tourne dessus.",
-        },
-        {
-          question: "As-tu besoin d'installer PostgreSQL en local pour faire les ateliers de ce module ?",
-          options: ["Oui, obligatoirement", "Non — le bac à sable DataLendo tourne dans le navigateur", "Seulement le week-end"],
-          correct_index: 1,
-          explain: "Le bac à sable embarque un vrai PostgreSQL compilé en WebAssembly — rien à installer pour pratiquer.",
-        },
-        {
           question: "Combien de pays couvre le fil rouge AfriPay ?",
           options: ["3", "8", "20"],
           correct_index: 1,
           explain: "RDC, Congo-Brazzaville, Côte d'Ivoire, Sénégal, Mali, Kenya, Maroc, Algérie.",
+        },
+        {
+          question: "Pourquoi le fait que plusieurs devises coexistent est-il important pour la suite du module ?",
+          options: [
+            "Ça ne change rien techniquement",
+            "Ça justifie la nécessité d'un as-of join pour convertir un montant au bon taux historique",
+            "Parce que PostgreSQL ne supporte qu'une seule devise",
+          ],
+          correct_index: 1,
+          explain: "Convertir un montant demande le taux en vigueur à la date de la transaction — vu en détail leçon 2.4.",
+        },
+        {
+          question: "Quelle table modélise la hiérarchie du réseau d'agents mobile money ?",
+          options: ["dim_merchant", "dim_agent", "fact_transactions"],
+          correct_index: 1,
+          explain: "dim_agent a une colonne manager_id qui référence agent_id de la même table — une hiérarchie.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.9 — EXPLORER UN SCHÉMA INCONNU
+    // ------------------------------------------------------------
+    {
+      number: "2.1.9",
+      slug: "explorer-schema-inconnu-methodiquement",
+      title: "Explorer un schéma inconnu, méthodiquement",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 30,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "En poste, ton premier jour ressemblera rarement à une documentation à jour — plutôt à une base de données existante qu'il faut comprendre par toi-même. Voici la méthode, appliquée ici à AfriPay comme si tu la découvrais pour la première fois.",
+          },
+          { type: "h3", text: "Étape 1 — Lister les tables disponibles" },
+          {
+            type: "sql_code",
+            text: "select table_name, table_type\nfrom information_schema.tables\nwhere table_schema = 'public'\norder by table_name;",
+          },
+          { type: "h3", text: "Étape 2 — Inspecter les colonnes d'une table qui t'intéresse" },
+          {
+            type: "sql_code",
+            text: "select column_name, data_type, is_nullable\nfrom information_schema.columns\nwhere table_schema = 'public' and table_name = 'fact_transactions'\norder by ordinal_position;",
+          },
+          { type: "h3", text: "Étape 3 — Retrouver les clés primaires et étrangères" },
+          {
+            type: "sql_code",
+            text: "-- Contraintes déclarées sur une table (PK, FK, UNIQUE, CHECK)\nselect constraint_name, constraint_type\nfrom information_schema.table_constraints\nwhere table_schema = 'public' and table_name = 'dim_agent';",
+          },
+          { type: "h3", text: "Étape 4 — Compter les lignes et repérer les tables vides ou énormes" },
+          {
+            type: "sql_code",
+            text: "select 'dim_customer' as t, count(*) from dim_customer\nunion all select 'fact_transactions', count(*) from fact_transactions;",
+          },
+          { type: "h3", text: "Étape 5 — Échantillonner, jamais deviner" },
+          {
+            type: "sql_code",
+            text: "-- Toujours regarder de vraies lignes avant de faire des hypothèses sur le contenu\nselect * from fact_transactions limit 20;",
+          },
+          {
+            type: "callout",
+            title: "Pourquoi cette méthode dans cet ordre précis",
+            text: "Lister avant d'inspecter, inspecter avant de compter, compter avant d'échantillonner : chaque étape restreint et confirme la précédente. Sauter directement à \"select *\" sur une table inconnue de plusieurs millions de lignes, sans LIMIT, peut ralentir voire saturer une connexion partagée.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Applique la méthode complète à la table raw_transactions_bronze que tu n'as pas encore explorée : liste ses colonnes, puis échantillonne 10 lignes.",
+            starterQuery:
+              "select column_name, data_type, is_nullable\nfrom information_schema.columns\nwhere table_schema = 'public' and table_name = 'raw_transactions_bronze'\norder by ordinal_position;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Remarque que raw_transactions_bronze a des colonnes typées `text` presque partout, contrairement à fact_transactions qui a des types précis (numeric, timestamptz...). Ce contraste n'est pas un hasard — retiens-le, il est au cœur de la leçon 2.7 sur la qualité des données.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle vue système permet de lister toutes les tables d'un schéma en SQL pur, sans commande propre à un client ?",
+          options: ["pg_stat_activity", "information_schema.tables", "dim_country"],
+          correct_index: 1,
+          explain: "information_schema.tables est portable — elle fonctionne dans tout client SQL, y compris le bac à sable.",
+        },
+        {
+          question: "Dans la méthode d'exploration proposée, pourquoi échantillonner avec LIMIT plutôt que faire un SELECT * sans limite sur une table inconnue ?",
+          options: [
+            "LIMIT est obligatoire en SQL",
+            "Sur une table de plusieurs millions de lignes, cela évite de ralentir voire saturer une connexion partagée",
+            "Sans LIMIT, PostgreSQL refuse d'exécuter la requête",
+          ],
+          correct_index: 1,
+          explain: "Prudence sur les tables de taille inconnue — un réflexe professionnel avant de savoir combien de lignes elle contient réellement.",
+        },
+        {
+          question: "Quelle table du jeu de données AfriPay a des colonnes presque toutes typées en texte plutôt qu'en types précis ?",
+          options: ["dim_country", "raw_transactions_bronze", "fact_transactions"],
+          correct_index: 1,
+          explain: "C'est volontaire — une extraction brute non nettoyée, sujet de la leçon 2.7.",
+        },
+      ],
+    },
+
+    // ------------------------------------------------------------
+    // 2.1.10 — ATELIER DE SYNTHÈSE
+    // ------------------------------------------------------------
+    {
+      number: "2.1.10",
+      slug: "atelier-de-synthese-chapitre-2-1",
+      title: "Atelier de synthèse du chapitre",
+      parentSlug: "remise-en-contexte-environnement-postgresql",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Ce chapitre a posé le contexte (2.1.1), le choix du moteur (2.1.2), l'installation (2.1.3), l'anatomie d'un serveur (2.1.4), les deux façons de s'y connecter — psql (2.1.5) et VS Code (2.1.6) —, le fonctionnement du bac à sable (2.1.7), le contexte métier d'AfriPay (2.1.8) et une méthode d'exploration de schéma (2.1.9). Cet atelier fait la synthèse pratique de tout ça, en une seule session.",
+          },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.2 si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais expliquer en une phrase pourquoi PostgreSQL est le bon choix pour AfriPay",
+              "Je sais où trouver, dans mon environnement, de quoi me connecter à une base (psql ou VS Code)",
+              "Je comprends que le bac à sable est un vrai PostgreSQL, pas une imitation, et pourquoi ça compte",
+              "Je peux nommer les 8 tables d'AfriPay et le rôle de chacune sans les relire",
+              "Je sais lister les tables et les colonnes d'un schéma que je ne connais pas encore, en SQL pur",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 1 — Explore méthodiquement dim_merchant comme si tu la découvrais pour la première fois : liste ses colonnes.",
+            starterQuery:
+              "select column_name, data_type\nfrom information_schema.columns\nwhere table_schema = 'public' and table_name = 'dim_merchant'\norder by ordinal_position;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 2 — Une fois la structure connue, réponds à une vraie question métier : combien de marchands actifs par pays AfriPay compte-t-elle ?",
+            starterQuery:
+              "select country_code, count(*) as nb_marchands\nfrom dim_merchant\ngroup by country_code\norder by nb_marchands desc;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 3 — Combine deux tables : quel est le nombre de marchands par catégorie, avec le nom complet du pays plutôt que son code ?",
+            starterQuery:
+              "select m.category, c.country_name, count(*) as nb_marchands\nfrom dim_merchant m\njoin dim_country c on c.country_code = m.country_code\ngroup by m.category, c.country_name\norder by nb_marchands desc;",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Cette dernière requête utilise déjà une jointure — sujet officiel du Chapitre 2.3 — sans que tu aies eu besoin d'un cours dessus pour la lire. C'est volontaire : le SQL s'apprend aussi par la pratique répétée avant la théorie formelle, pas seulement l'inverse.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quelle est la bonne raison de choisir PostgreSQL pour un projet comme AfriPay ?",
+          options: [
+            "C'est le seul moteur qui existe",
+            "Ses garanties relationnelles et sa richesse fonctionnelle (JSONB, window functions) correspondent aux besoins d'une fintech",
+            "Il n'y a aucune raison particulière",
+          ],
+          correct_index: 1,
+          explain: "Le choix se justifie par les besoins réels du projet, pas par défaut.",
+        },
+        {
+          question: "Pourquoi le bac à sable DataLendo permet-il de pratiquer en confiance des fonctionnalités avancées (CTE récursive, window functions) ?",
+          options: [
+            "Parce que ces fonctionnalités sont désactivées de toute façon",
+            "Parce que c'est un vrai PostgreSQL (PGlite) — tout ce qui fonctionne là fonctionnera en local ou en production",
+            "Parce qu'il n'y a que 5 000 lignes de données",
+          ],
+          correct_index: 1,
+          explain: "La fidélité du moteur, pas le volume de données, est ce qui garantit le transfert de compétence.",
+        },
+        {
+          question: "Quelle méthode permet de découvrir les colonnes d'une table inconnue en SQL pur, sans documentation préalable ?",
+          options: [
+            "Deviner à partir du nom de la table",
+            "Interroger information_schema.columns",
+            "Demander à un collègue systématiquement",
+          ],
+          correct_index: 1,
+          explain: "information_schema.columns fonctionne dans n'importe quel client SQL, y compris sans accès psql.",
+        },
+        {
+          question: "Combien de tables compose le jeu de données AfriPay que tu vas utiliser pendant tout ce module ?",
+          options: ["4", "8", "15"],
+          correct_index: 1,
+          explain: "dim_country, dim_customer, dim_merchant, dim_agent, dim_date, fx_rates, fact_transactions, raw_transactions_bronze.",
         },
       ],
     },
@@ -1116,14 +1884,20 @@ async function main() {
     },
   ];
 
+  const slugToId = new Map<string, string>();
+
   for (const lesson of lessons) {
     console.log(`  → Leçon ${lesson.number} — ${lesson.title}`);
-    const { quiz, ...lessonRow } = lesson;
+    const { quiz, parentSlug, ...lessonRow } = lesson as typeof lesson & { parentSlug?: string };
+    const parentId = parentSlug ? slugToId.get(parentSlug) ?? null : null;
+    if (parentSlug && !parentId) throw new Error(`Parent introuvable pour ${lesson.slug} (parentSlug=${parentSlug})`);
+
     const { data: savedLesson, error: lessonErr } = await supabase
       .from("lessons")
       .upsert(
         {
           module_id: mod.id,
+          parent_lesson_id: parentId,
           number: lessonRow.number,
           slug: lessonRow.slug,
           title: lessonRow.title,
@@ -1138,18 +1912,21 @@ async function main() {
       .single();
 
     if (lessonErr || !savedLesson) throw lessonErr ?? new Error("Leçon introuvable après upsert");
+    slugToId.set(lesson.slug, savedLesson.id);
 
     await supabase.from("quiz_questions").delete().eq("lesson_id", savedLesson.id);
-    await supabase.from("quiz_questions").insert(
-      quiz.map((q, i) => ({
-        lesson_id: savedLesson.id,
-        question: q.question,
-        options: q.options,
-        correct_index: q.correct_index,
-        explain: q.explain,
-        sort_order: i,
-      }))
-    );
+    if (quiz.length > 0) {
+      await supabase.from("quiz_questions").insert(
+        quiz.map((q, i) => ({
+          lesson_id: savedLesson.id,
+          question: q.question,
+          options: q.options,
+          correct_index: q.correct_index,
+          explain: q.explain,
+          sort_order: i,
+        }))
+      );
+    }
   }
 
   // Nettoyage des leçons d'une version antérieure du seed
