@@ -3731,13 +3731,13 @@ async function main() {
     },
 
     // ============================================================
-    // 2.6 — MODÉLISATION DE DONNÉES ⭐
+    // CHAPITRE 2.6 — MODÉLISATION DE DONNÉES ⭐
     // ============================================================
     {
       number: "2.6",
       slug: "modelisation-de-donnees",
       title: "⭐ Modélisation de données",
-      duration_minutes: 360,
+      duration_minutes: 15,
       sort_order: 6,
       body_content: {
         blocks: [
@@ -3745,44 +3745,361 @@ async function main() {
             type: "p",
             text: "C'est le cœur de ce module, et probablement la compétence la plus rentable de tout le bootcamp en entretien d'embauche. N'importe qui peut apprendre la syntaxe SQL en une semaine ; savoir concevoir le bon schéma pour le bon problème, c'est ce qui distingue un data engineer confirmé.",
           },
-          { type: "h3", text: "Pourquoi modéliser : du problème métier aux tables" },
           {
-            type: "p",
-            text: "Modéliser, c'est traduire une question métier (« quel est le revenu d'AfriPay par pays et par mois ? ») en une structure de tables qui rend cette question facile, rapide et fiable à répondre — pas juste possible.",
-          },
-          { type: "h3", text: "Modèle conceptuel et logique (MCD/MLD)" },
-          {
-            type: "list",
+            type: "checklist",
+            title: "Les 10 leçons de ce chapitre",
             items: [
-              "MCD (conceptuel) — les entités du métier et leurs relations, sans se soucier du type de base de données : Client, Marchand, Transaction, Pays",
-              "MLD (logique) — le même modèle traduit en tables, colonnes, clés primaires et étrangères, indépendant du moteur SQL précis",
-              "Cardinalités — 1:1 (un client, un compte), 1:N (un client, plusieurs transactions), N:N (nécessite une table de liaison)",
+              "2.6.1 — Pourquoi modéliser : du problème métier aux tables",
+              "2.6.2 — MCD et MLD : entités, relations, cardinalités",
+              "2.6.3 — Normalisation 1NF → 3NF",
+              "2.6.4 — Dénormalisation raisonnée : OLTP vs analytique",
+              "2.6.5 — Modélisation dimensionnelle (Kimball) : la fact table et ses types",
+              "2.6.6 — Dimensions et dimensions conformées",
+              "2.6.7 — Star Schema vs Snowflake vs One Big Table (OBT)",
+              "2.6.8 — Le grain et les clés de substitution (surrogate keys)",
+              "2.6.9 — Slowly Changing Dimensions (SCD) : types 0, 1, 2, 3, 6",
+              "2.6.10 — Atelier de synthèse : modéliser et vérifier le grain d'AfriPay",
             ],
           },
-          { type: "h3", text: "Normalisation 1NF → 3NF, et dénormalisation raisonnée" },
+        ],
+      },
+      quiz: [],
+    },
+
+    {
+      number: "2.6.1",
+      slug: "pourquoi-modeliser-probleme-metier-tables",
+      title: "Pourquoi modéliser : du problème métier aux tables",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 25,
+      sort_order: 1,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Modéliser, c'est traduire une question métier — « quel est le revenu d'AfriPay par pays et par mois ? » — en une structure de tables qui rend cette question facile, rapide et fiable à répondre. Pas juste possible : n'importe quel schéma mal pensé permet techniquement de répondre à presque tout, au prix de requêtes fragiles et lentes.",
+          },
+          {
+            type: "callout",
+            title: "Un mauvais modèle ne se voit pas tout de suite",
+            text: "Un schéma mal pensé fonctionne parfaitement en développement, avec 5 000 lignes de test. Le problème apparaît en production, six mois plus tard, quand une requête censée prendre 200ms en prend 8 secondes parce que le modèle sous-jacent n'a jamais été pensé pour ce type de question. Modéliser, c'est anticiper l'usage réel, pas juste stocker ce qu'on a sous la main.",
+          },
+          {
+            type: "p",
+            text: "Deux questions à se poser avant de dessiner la moindre table : \"quelles questions métier ce système doit-il répondre, aujourd'hui ET dans six mois ?\" et \"à quelle fréquence et quel volume ces questions seront-elles posées ?\". Les réponses déterminent si un modèle 3NF classique suffit, ou si un entrepôt analytique dédié devient nécessaire — c'est tout l'objet de ce chapitre.",
+          },
+          {
+            type: "table",
+            headers: ["Question métier AfriPay", "Ce qu'elle exige du modèle"],
+            rows: [
+              ["Quel est le solde d'un compte MAINTENANT ?", "Un système OLTP à jour à la seconde près, cohérence stricte"],
+              ["Quel a été le revenu mensuel par pays sur 2 ans ?", "Un entrepôt analytique optimisé pour scanner de gros volumes vite"],
+              ["Qui était le manager de cet agent il y a 6 mois ?", "Une dimension avec historique (SCD Type 2, Leçon 2.6.9)"],
+            ],
+          },
+          {
+            type: "thinking_prompt",
+            text: "Le reste de ce chapitre n'est pas une liste de techniques déconnectées — chacune répond à une des questions ci-dessus. Garde-les en tête : elles justifient chaque concept qui suit.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi un mauvais modèle de données ne se révèle-t-il souvent pas immédiatement ?",
+          options: [
+            "Parce que PostgreSQL corrige les erreurs de modélisation automatiquement",
+            "Parce qu'il fonctionne bien sur un petit volume de test, et ne montre ses limites qu'à l'échelle réelle",
+            "Un mauvais modèle provoque toujours une erreur immédiate",
+          ],
+          correct_index: 1,
+          explain: "C'est justement pour ça que la modélisation doit anticiper l'usage réel, pas seulement le cas de test.",
+        },
+        {
+          question: "Modéliser des données consiste avant tout à :",
+          options: [
+            "Créer le plus de tables possible",
+            "Traduire des questions métier en une structure qui les rend rapides et fiables à répondre",
+            "Suivre une checklist technique sans lien avec l'usage",
+          ],
+          correct_index: 1,
+          explain: "Le bon modèle dépend toujours des questions posées et de leur fréquence — jamais d'une règle universelle.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.2",
+      slug: "mcd-mld-entites-relations-cardinalites",
+      title: "MCD et MLD : entités, relations, cardinalités",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 25,
+      sort_order: 2,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Avant d'écrire le moindre CREATE TABLE, un modèle se pense à deux niveaux d'abstraction croissants : le conceptuel (MCD), puis le logique (MLD).",
+          },
+          {
+            type: "table",
+            headers: ["Niveau", "Répond à", "Exemple AfriPay"],
+            rows: [
+              ["MCD (conceptuel)", "Quelles sont les entités du métier, et comment se relient-elles ?", "Client, Marchand, Transaction, Pays — sans se soucier du type de base de données"],
+              ["MLD (logique)", "Comment ces entités deviennent-elles des tables, colonnes, clés ?", "dim_customer, dim_merchant, fact_transactions, dim_country — indépendant du moteur SQL précis"],
+              ["Physique", "Comment ça s'implémente réellement dans CE moteur ?", "Les CREATE TABLE PostgreSQL exacts, avec types et index"],
+            ],
+          },
+          { type: "h3", text: "Cardinalités — le vocabulaire des relations" },
+          {
+            type: "table",
+            headers: ["Cardinalité", "Signifie", "Exemple AfriPay"],
+            rows: [
+              ["1:1", "Une entité A correspond à exactement une entité B", "Un client, un profil de vérification KYC (hypothétique)"],
+              ["1:N", "Une entité A peut correspondre à plusieurs entités B", "Un client (1), plusieurs transactions (N)"],
+              ["N:N", "Plusieurs entités A correspondent à plusieurs entités B", "Marchands ↔ Clients — nécessite une table de liaison (ici, fact_transactions elle-même joue ce rôle)"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi une relation N:N a toujours besoin d'une table intermédiaire",
+            text: "Une relation N:N ne peut pas se stocker directement avec une simple clé étrangère d'un côté — il faudrait une colonne qui contienne plusieurs valeurs, ce qui violerait la 1NF (Leçon 2.6.3). fact_transactions résout implicitement le N:N entre clients et marchands : chaque ligne associe UN client à UN marchand, et la relation N:N émerge de l'ensemble des lignes.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie la cardinalité réelle client ↔ transaction : un client peut-il avoir plusieurs transactions ?",
+            starterQuery:
+              "select customer_id, count(*) as nb_transactions\nfrom fact_transactions\ngroup by customer_id\norder by nb_transactions desc\nlimit 10;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que représente le MCD (modèle conceptuel de données) ?",
+          options: [
+            "Les tables SQL exactes avec leurs types",
+            "Les entités du métier et leurs relations, indépendamment de toute base de données",
+            "Le plan d'exécution d'une requête",
+          ],
+          correct_index: 1,
+          explain: "Le MCD reste au niveau du métier — sa traduction en tables vient ensuite, au niveau MLD.",
+        },
+        {
+          question: "Pourquoi une relation N:N ne peut-elle pas se modéliser avec une simple clé étrangère d'un seul côté ?",
+          options: [
+            "Ce serait au contraire la bonne approche",
+            "Il faudrait qu'une colonne contienne plusieurs valeurs à la fois, ce qui violerait la 1NF",
+            "SQL ne supporte pas les relations N:N du tout",
+          ],
+          correct_index: 1,
+          explain: "Une table intermédiaire (ou une fact table qui joue ce rôle) est nécessaire pour respecter l'atomicité des colonnes.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.3",
+      slug: "normalisation-1nf-2nf-3nf",
+      title: "Normalisation 1NF → 3NF",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 30,
+      sort_order: 3,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Normaliser un schéma, c'est éliminer la redondance et les incohérences potentielles, forme par forme. Chaque niveau ajoute une garantie supplémentaire sur la structure des données.",
+          },
           {
             type: "table",
             headers: ["Forme normale", "Règle", "Exemple AfriPay"],
             rows: [
-              ["1NF", "Chaque cellule contient une seule valeur atomique", "Pas de liste de canaux dans une seule colonne"],
-              ["2NF", "Chaque colonne dépend de la clé primaire ENTIÈRE", "merchant_name ne doit pas être répété dans fact_transactions"],
-              ["3NF", "Aucune colonne ne dépend d'une autre colonne non-clé", "country_name doit vivre dans dim_country, pas être dupliqué partout"],
+              ["1NF", "Chaque cellule contient une seule valeur atomique", "Pas de liste de canaux dans une seule colonne — channel_metadata reste un objet JSON structuré, pas une liste de valeurs mélangées dans du texte"],
+              ["2NF", "Chaque colonne dépend de la clé primaire ENTIÈRE (s'applique aux clés composées)", "merchant_name ne doit pas être répété dans fact_transactions — il dépend de merchant_id, pas de transaction_id"],
+              ["3NF", "Aucune colonne ne dépend d'une autre colonne non-clé", "country_name doit vivre dans dim_country, pas être dupliqué partout où country_code apparaît"],
             ],
           },
           {
-            type: "p",
-            text: "Un système transactionnel (OLTP) vise la 3NF : zéro redondance, cohérence garantie. Un entrepôt analytique dénormalise volontairement — comme tu vas le voir avec le schéma en étoile — parce que la vitesse de lecture compte plus que l'absence totale de redondance.",
+            type: "callout",
+            title: "🪤 Ce qui casse si country_name était dupliqué dans fact_transactions",
+            text: "Si country_name était stocké directement dans fact_transactions (plutôt que juste country_code, avec une jointure vers dim_country), renommer un pays demanderait de mettre à jour des milliers de lignes. Pire : un bug pourrait laisser deux orthographes différentes du même pays coexister — une anomalie de mise à jour, exactement ce que la 3NF empêche structurellement.",
           },
-          { type: "h3", text: "Modélisation dimensionnelle (Kimball)" },
           {
-            type: "list",
-            items: [
-              "Fact table — les faits mesurables (une transaction), avec des clés étrangères vers les dimensions et des mesures numériques",
-              "Fact transactionnelle — une ligne par événement (fact_transactions)",
-              "Fact snapshot — une photo périodique d'un état (ex. solde de compte chaque nuit)",
-              "Fact accumulating — une ligne mise à jour au fil d'un processus (ex. un onboarding marchand, de la demande à l'activation)",
-              "Dimension — le contexte descriptif (dim_customer, dim_merchant, dim_country, dim_date)",
-              "Dimensions conformées — la même dim_date, la même dim_country, réutilisées par tous les schémas en étoile de l'entreprise",
+            type: "sql_code",
+            text: "-- Le schéma AfriPay respecte déjà la 3NF pour ses tables OLTP-like\n-- country_name vit UNIQUEMENT dans dim_country\nselect country_code, country_name from dim_country;\n\n-- fact_transactions ne stocke QUE le code, jamais le nom complet\nselect country_code from fact_transactions limit 1;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie qu'aucune information de pays n'est dupliquée directement dans fact_transactions (colonnes disponibles).",
+            starterQuery:
+              "select column_name from information_schema.columns\nwhere table_name = 'fact_transactions'\norder by ordinal_position;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "La 1NF exige que :",
+          options: [
+            "Chaque cellule contienne une seule valeur atomique",
+            "Chaque table ait exactement 5 colonnes",
+            "Aucune table ne dépasse 1000 lignes",
+          ],
+          correct_index: 0,
+          explain: "C'est la forme normale de base — pas de listes ou de valeurs composites dans une seule cellule.",
+        },
+        {
+          question: "Que garantit la 3NF concrètement pour country_name dans AfriPay ?",
+          options: [
+            "Rien de particulier",
+            "country_name vit uniquement dans dim_country, jamais dupliqué ailleurs — évitant les anomalies de mise à jour",
+            "country_name doit être stocké dans chaque table qui en a besoin",
+          ],
+          correct_index: 1,
+          explain: "Dupliquer country_name créerait un risque d'incohérence si le nom devait un jour être corrigé.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.4",
+      slug: "denormalisation-raisonnee-oltp-vs-analytique",
+      title: "Dénormalisation raisonnée : OLTP vs analytique",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 25,
+      sort_order: 4,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "La normalisation n'est pas une fin en soi — c'est un compromis. Un système transactionnel (OLTP) vise la 3NF : zéro redondance, cohérence garantie à chaque écriture. Un entrepôt analytique dénormalise volontairement, parce que la vitesse de LECTURE compte plus que l'absence totale de redondance.",
+          },
+          {
+            type: "table",
+            headers: ["", "OLTP (transactionnel)", "Analytique (entrepôt)"],
+            rows: [
+              ["Objectif principal", "Écritures fréquentes, cohérence stricte", "Lectures massives, agrégations rapides"],
+              ["Niveau de normalisation typique", "3NF", "Dénormalisé (star schema, Leçon 2.6.7)"],
+              ["Exemple AfriPay", "L'application mobile qui enregistre une transaction", "Le tableau de bord qui agrège le revenu par pays et par mois"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi dénormaliser accélère vraiment les lectures analytiques",
+            text: "Une requête analytique qui doit joindre 6 tables normalisées pour reconstituer \"le nom du pays, le nom du marchand, la catégorie\" à chaque ligne coûte plus cher qu'une requête sur une seule table qui contient déjà ces informations dupliquées. Le prix payé : plus d'espace disque, et une donnée dupliquée à maintenir cohérente lors des mises à jour — un compromis acceptable pour un entrepôt où les écritures sont rares (chargement par lot) et les lectures fréquentes.",
+          },
+          {
+            type: "p",
+            text: "AfriPay illustre les deux mondes : dim_customer/dim_merchant/dim_country restent relativement normalisées (chacune sa responsabilité), mais fact_transactions dénormalise déjà en stockant channel_metadata en JSONB plutôt que dans une table séparée — un choix pragmatique pour un attribut rarement interrogé seul.",
+          },
+          {
+            type: "thinking_prompt",
+            text: "Est-ce que je modélise pour la robustesse transactionnelle (3NF, zéro redondance) ou pour la vitesse analytique (star schema, redondance assumée) ? Les deux réponses ne produisent jamais les mêmes tables — et confondre les deux objectifs est l'erreur de modélisation la plus fréquente chez les débutants.",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Pourquoi un entrepôt analytique dénormalise-t-il volontairement ses données ?",
+          options: [
+            "Par erreur de conception",
+            "Parce que la vitesse de lecture prime sur l'absence totale de redondance, dans un contexte de lectures fréquentes et d'écritures rares",
+            "Parce que PostgreSQL l'exige pour les gros volumes",
+          ],
+          correct_index: 1,
+          explain: "C'est un compromis assumé, pas un défaut — l'inverse exact des priorités d'un système OLTP.",
+        },
+        {
+          question: "Quelle est l'erreur de modélisation la plus fréquente chez les débutants selon ce chapitre ?",
+          options: [
+            "Utiliser trop d'index",
+            "Confondre l'objectif de robustesse transactionnelle (3NF) avec l'objectif de vitesse analytique (dénormalisé)",
+            "Utiliser des CTE plutôt que des sous-requêtes",
+          ],
+          correct_index: 1,
+          explain: "Ces deux objectifs produisent des schémas radicalement différents — il faut choisir consciemment lequel prime pour le cas d'usage.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.5",
+      slug: "modelisation-dimensionnelle-kimball-fact-table",
+      title: "Modélisation dimensionnelle (Kimball) : la fact table et ses types",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 30,
+      sort_order: 5,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "La modélisation dimensionnelle (méthode Kimball) organise un entrepôt analytique autour de deux types de tables : des fact tables (les faits mesurables) et des dimensions (leur contexte descriptif). C'est le standard de l'industrie pour construire un entrepôt de données lisible et performant.",
+          },
+          {
+            type: "table",
+            headers: ["Type de fact table", "Principe", "Exemple"],
+            rows: [
+              ["Fact transactionnelle", "Une ligne par événement individuel, jamais modifiée après insertion", "fact_transactions — une ligne par transaction AfriPay"],
+              ["Fact snapshot (périodique)", "Une photo de l'état à intervalle régulier, même si rien n'a changé", "Le solde de chaque compte agent, capturé chaque nuit"],
+              ["Fact accumulating (cumulative)", "Une seule ligne par processus, mise à jour au fil de ses étapes", "Un onboarding marchand : une ligne créée à la demande, mise à jour à chaque étape jusqu'à l'activation"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi fact_transactions est une fact transactionnelle, pas autre chose",
+            text: "Chaque transaction AfriPay est un événement instantané et immuable une fois complété — le grain naturel est \"une ligne par transaction\", jamais retouchée. Un fact snapshot conviendrait plutôt à \"le solde du compte à la fin de chaque journée\" — une donnée d'état, pas un événement.",
+          },
+          {
+            type: "sql_code",
+            text: "-- fact_transactions : structure typique d'une fact transactionnelle\n-- Clés étrangères vers les dimensions + mesures numériques\nselect transaction_id,        -- clé de la fact\n  customer_id, merchant_id, country_code,  -- clés étrangères vers les dimensions\n  amount_local, status, channel             -- mesures et attributs dégénérés\nfrom fact_transactions limit 5;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie que chaque transaction référence bien un customer_id et un merchant_id existants (intégrité référentielle).",
+            starterQuery:
+              "select count(*) as transactions_orphelines\nfrom fact_transactions t\nleft join dim_customer c on c.customer_id = t.customer_id\nwhere c.customer_id is null;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Quel type de fact table correspond à \"une ligne par transaction, jamais modifiée après coup\" ?",
+          options: ["Fact snapshot", "Fact transactionnelle", "Fact accumulating"],
+          correct_index: 1,
+          explain: "C'est exactement le cas de fact_transactions dans AfriPay.",
+        },
+        {
+          question: "Un fact accumulating (cumulative) se distingue par :",
+          options: [
+            "Une nouvelle ligne à chaque événement",
+            "Une seule ligne par processus, mise à jour au fil de ses étapes successives",
+            "L'absence totale de clés étrangères",
+          ],
+          correct_index: 1,
+          explain: "Utile pour suivre un processus qui progresse dans le temps, comme un onboarding marchand.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.6",
+      slug: "dimensions-dimensions-conformees",
+      title: "Dimensions et dimensions conformées",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 25,
+      sort_order: 6,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une dimension fournit le contexte descriptif d'un fait — le \"qui, quoi, où, quand\" qui donne du sens à une mesure brute. Sans dimension, \"5000 lignes, 250 000 de volume\" ne raconte rien d'exploitable.",
+          },
+          {
+            type: "table",
+            headers: ["Dimension AfriPay", "Contexte qu'elle apporte"],
+            rows: [
+              ["dim_customer", "QUI a fait la transaction"],
+              ["dim_merchant", "OÙ (chez quel marchand) la transaction a eu lieu"],
+              ["dim_country", "OÙ géographiquement, avec quelle devise et quel fuseau"],
+              ["dim_date", "QUAND, avec des attributs prêts à l'emploi (trimestre, semaine, jour férié...)"],
             ],
           },
           {
@@ -3791,40 +4108,220 @@ async function main() {
             factColumns: ["transaction_id", "amount_local", "channel", "status"],
             dimensions: ["dim_customer", "dim_merchant", "dim_country", "dim_date"],
           },
-          { type: "h3", text: "Star Schema vs Snowflake vs One Big Table (OBT)" },
+          {
+            type: "callout",
+            title: "Dimensions conformées : la clé pour éviter des schémas incohérents entre équipes",
+            text: "Une dimension conformée est PARTAGÉE et identique entre plusieurs schémas en étoile de l'entreprise — la même dim_date, la même dim_country, réutilisées que ce soit pour analyser les transactions, les onboardings d'agents, ou un futur module de fraude. Sans cette discipline, deux équipes finissent par avoir chacune \"leur\" dim_date légèrement différente, rendant impossible de comparer leurs rapports de façon fiable.",
+          },
+          {
+            type: "p",
+            text: "dim_date en particulier est presque toujours construite une seule fois pour toute l'entreprise, avec des années à l'avance déjà générées — exactement l'approche prise pour AfriPay (2 ans de calendrier déjà en place).",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Explore dim_date : quels attributs prêts à l'emploi contient-elle ?",
+            starterQuery:
+              "select * from dim_date limit 5;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Le rôle d'une dimension dans un schéma dimensionnel est de :",
+          options: [
+            "Stocker les mesures numériques principales",
+            "Fournir le contexte descriptif (qui, quoi, où, quand) qui donne du sens aux faits",
+            "Remplacer entièrement la fact table",
+          ],
+          correct_index: 1,
+          explain: "Sans dimension, une mesure brute comme \"5000 lignes\" ne dit rien d'exploitable seule.",
+        },
+        {
+          question: "Pourquoi une dimension conformée (comme dim_date) doit-elle être partagée entre équipes plutôt que dupliquée ?",
+          options: [
+            "Pour économiser de l'espace disque uniquement",
+            "Pour garantir que les rapports de différentes équipes restent comparables entre eux",
+            "PostgreSQL interdit les dimensions dupliquées",
+          ],
+          correct_index: 1,
+          explain: "Deux versions légèrement différentes de dim_date rendraient les comparaisons entre équipes non fiables.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.7",
+      slug: "star-schema-vs-snowflake-vs-obt",
+      title: "Star Schema vs Snowflake vs One Big Table (OBT)",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 30,
+      sort_order: 7,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Trois façons d'organiser un entrepôt dimensionnel, avec un arbitrage différent entre simplicité de requête, redondance de stockage, et coût de jointure.",
+          },
           {
             type: "table",
             headers: ["Modèle", "Principe", "Compromis"],
             rows: [
-              ["Star Schema", "Une fact table, des dimensions dénormalisées directement reliées", "Simple à interroger, quelques Mo de redondance"],
+              ["Star Schema", "Une fact table, des dimensions dénormalisées directement reliées", "Simple à interroger, quelques Mo de redondance — le standard AfriPay"],
               ["Snowflake Schema", "Les dimensions sont elles-mêmes normalisées (dim_country éclatée en dim_region + dim_country)", "Moins de redondance, mais plus de jointures à chaque requête"],
               ["One Big Table (OBT)", "Fact et dimensions pré-jointes en une seule table large", "Lectures très rapides, mais duplication importante et mises à jour coûteuses"],
             ],
           },
           {
+            type: "sql_code",
+            text: "-- Version star schema (l'actuelle d'AfriPay) : une jointure par dimension nécessaire\nselect t.transaction_id, c.full_name, m.merchant_name, co.country_name\nfrom fact_transactions t\njoin dim_customer c on c.customer_id = t.customer_id\njoin dim_merchant m on m.merchant_id = t.merchant_id\njoin dim_country co on co.country_code = t.country_code;\n\n-- Version OBT (hypothétique) : tout est déjà pré-joint, zéro JOIN nécessaire à la lecture\n-- select transaction_id, client_nom, marchand_nom, pays_nom from obt_transactions_completes;",
+          },
+          {
             type: "callout",
             title: "L'arbitrage moderne",
-            text: "Avec le stockage colonnaire (Parquet, BigQuery, Snowflake) devenu très bon marché, l'OBT gagne du terrain pour les tableaux de bord à très forte lecture. Le star schema reste le standard par défaut : équilibre entre simplicité, gouvernance et coût de stockage.",
+            text: "Avec le stockage colonnaire (Parquet, BigQuery, Snowflake) devenu très bon marché, l'OBT gagne du terrain pour les tableaux de bord à très forte lecture, où chaque milliseconde de jointure compte. Le star schema reste le standard par défaut de l'industrie : équilibre entre simplicité, gouvernance (une seule source de vérité par dimension) et coût de stockage raisonnable.",
           },
-          { type: "h3", text: "Le grain, et les clés de substitution" },
           {
             type: "p",
-            text: "Le grain d'une table, c'est la réponse à « que représente une seule ligne ? ». Pour fact_transactions, le grain est « une transaction ». Se tromper de grain (par exemple agréger par accident au niveau du client) casse silencieusement toutes les analyses futures. Une clé de substitution (surrogate key, ex. transaction_id auto-incrémenté) est indépendante de toute clé métier — elle ne change jamais, même si la clé métier évolue.",
+            text: "Le Snowflake Schema, lui, reste plus rare en pratique — le gain de redondance qu'il apporte compense rarement le coût de jointures supplémentaires, sauf sur des dimensions extrêmement volumineuses partagées par des centaines de fact tables.",
           },
-          { type: "h3", text: "Slowly Changing Dimensions (SCD)" },
+          {
+            type: "sql_sandbox",
+            prompt: "Simule une requête OBT en pré-joignant toi-même fact_transactions à ses trois dimensions dans une CTE.",
+            starterQuery:
+              "with obt_simulee as (\n  select t.transaction_id, t.amount_local, c.full_name, m.merchant_name, co.country_name\n  from fact_transactions t\n  join dim_customer c on c.customer_id = t.customer_id\n  join dim_merchant m on m.merchant_id = t.merchant_id\n  join dim_country co on co.country_code = t.country_code\n)\nselect * from obt_simulee limit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Dans un schéma en étoile, les dimensions sont typiquement :",
+          options: ["Normalisées en 3NF", "Dénormalisées, reliées directement à la fact table", "Interdites"],
+          correct_index: 1,
+          explain: "C'est ce qui rend le star schema simple à interroger — au prix d'une redondance assumée.",
+        },
+        {
+          question: "Le One Big Table (OBT) gagne du terrain aujourd'hui principalement parce que :",
+          options: [
+            "Le stockage colonnaire l'a rendu bon marché malgré la redondance",
+            "Il est plus normalisé qu'un star schema",
+            "Il n'existe plus de dimensions à gérer",
+          ],
+          correct_index: 0,
+          explain: "Avec Parquet/BigQuery/Snowflake, le coût de la redondance a fortement baissé, rendant l'OBT viable pour la lecture pure.",
+        },
+        {
+          question: "Un Snowflake Schema se distingue d'un Star Schema par :",
+          options: [
+            "L'absence totale de fact table",
+            "Des dimensions elles-mêmes normalisées, ajoutant des jointures supplémentaires",
+            "L'utilisation exclusive de JSON",
+          ],
+          correct_index: 1,
+          explain: "Moins de redondance de stockage, mais un coût de jointure plus élevé à chaque requête.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.8",
+      slug: "grain-cles-substitution-surrogate-keys",
+      title: "Le grain et les clés de substitution (surrogate keys)",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 25,
+      sort_order: 8,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Le grain d'une table, c'est la réponse à la question « que représente une seule ligne ? ». C'est la toute première décision à prendre en modélisant une fact table — et l'une des plus difficiles à corriger après coup.",
+          },
+          {
+            type: "callout",
+            title: "Se tromper de grain casse silencieusement tout ce qui est construit dessus",
+            text: "Si fact_transactions avait, par erreur, le grain \"un client\" (une ligne par client, montant déjà agrégé) plutôt que \"une transaction\", il deviendrait impossible de répondre à \"quel a été le montant de LA transaction du 5 janvier ?\" — l'information a été perdue à l'agrégation, sans qu'aucune erreur ne le signale au moment de la conception.",
+          },
+          {
+            type: "sql_code",
+            text: "-- Le grain de fact_transactions EST \"une transaction\" — vérifiable : chaque transaction_id doit être unique\nselect transaction_id, count(*)\nfrom fact_transactions\ngroup by transaction_id\nhaving count(*) > 1;   -- doit renvoyer zéro ligne si le grain est respecté",
+          },
+          { type: "h3", text: "Clés de substitution (surrogate keys)" },
+          {
+            type: "p",
+            text: "Une clé de substitution (surrogate key) est un identifiant généré par le système (souvent un entier auto-incrémenté ou un UUID), indépendant de toute clé métier — elle ne change jamais, même si la clé métier évolue ou se révèle un jour non fiable.",
+          },
+          {
+            type: "table",
+            headers: ["Type de clé", "Exemple", "Fragilité"],
+            rows: [
+              ["Clé métier (natural key)", "Un numéro de téléphone comme identifiant client", "Peut changer, être réutilisé, ou différer entre systèmes sources"],
+              ["Clé de substitution (surrogate key)", "customer_id (serial) dans dim_customer", "Stable par construction — jamais réutilisée, jamais modifiée"],
+            ],
+          },
+          {
+            type: "callout",
+            title: "Pourquoi une fintech panafricaine a particulièrement besoin de surrogate keys",
+            text: "Un numéro de téléphone (clé métier naturelle pour un client mobile money) peut être réattribué à une autre personne après résiliation dans certains pays, ou changer de format d'un pays à l'autre. S'appuyer sur customer_id — une clé de substitution stable, indépendante du téléphone — protège tout l'entrepôt de ces changements externes.",
+          },
+          {
+            type: "sql_sandbox",
+            prompt: "Vérifie que customer_id (la clé de substitution) est bien unique dans dim_customer.",
+            starterQuery:
+              "select customer_id, count(*)\nfrom dim_customer\ngroup by customer_id\nhaving count(*) > 1;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Le \"grain\" d'une table de faits désigne :",
+          options: ["Sa taille en Go", "Ce que représente une seule ligne", "Le nombre de dimensions qui lui sont reliées"],
+          correct_index: 1,
+          explain: "Se tromper de grain casse silencieusement toutes les analyses construites dessus.",
+        },
+        {
+          question: "Pourquoi préférer une clé de substitution (surrogate key) à une clé métier naturelle (ex. numéro de téléphone) ?",
+          options: [
+            "Les clés de substitution sont toujours plus courtes",
+            "Une clé métier peut changer, être réutilisée ou différer entre systèmes — la clé de substitution reste stable",
+            "PostgreSQL n'accepte pas les clés métier comme clé primaire",
+          ],
+          correct_index: 1,
+          explain: "C'est particulièrement critique pour des identifiants externes comme un numéro de téléphone, potentiellement réattribués.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.9",
+      slug: "scd-slowly-changing-dimensions",
+      title: "Slowly Changing Dimensions (SCD) : types 0, 1, 2, 3, 6",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 30,
+      sort_order: 9,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Une dimension change rarement, mais elle change quand même — un client déménage, change de segment, un marchand se renomme. Les Slowly Changing Dimensions (SCD) sont les stratégies standard pour gérer ces changements, chacune avec un compromis différent entre simplicité et conservation de l'historique.",
+          },
           {
             type: "table",
             headers: ["Type", "Comportement", "Cas AfriPay"],
             rows: [
-              ["Type 0", "Jamais modifié après création", "Date de signup d'un client"],
-              ["Type 1", "Écrase l'ancienne valeur, aucun historique", "Corriger une faute de frappe dans un nom"],
-              ["Type 2", "Nouvelle ligne à chaque changement, avec valid_from/valid_to/is_current", "Un client déménage de pays — on garde l'historique de qui il était"],
-              ["Type 3 / 6", "Une colonne \"valeur précédente\" (3), ou combinaison de 1+2+3 (6)", "Cas avancés, rarement nécessaires en pratique"],
+              ["Type 0", "Jamais modifié après création — figé pour toujours", "Date de signup d'un client"],
+              ["Type 1", "Écrase l'ancienne valeur, aucun historique conservé", "Corriger une simple faute de frappe dans un nom"],
+              ["Type 2", "Nouvelle ligne à chaque changement, avec valid_from/valid_to/is_current", "Un client déménage de pays — on garde l'historique de qui il était et depuis quand"],
+              ["Type 3", "Une colonne dédiée \"valeur précédente\" en plus de la valeur actuelle", "Garder uniquement l'AVANT-dernier segment, pas tout l'historique"],
+              ["Type 6", "Combinaison de 1 + 2 + 3 — cas avancé, rarement nécessaire en pratique", "Cas d'entreprise avec des besoins de reporting très spécifiques"],
             ],
           },
           {
             type: "sql_code",
             text: "-- dim_customer en SCD Type 2 : ajouter les colonnes de suivi de validité\nalter table dim_customer\n  add column valid_from date not null default '2024-01-01',\n  add column valid_to date,\n  add column is_current boolean not null default true;\n\n-- Un client change de pays : on clôture l'ancienne ligne, on en insère une nouvelle\nupdate dim_customer set valid_to = current_date, is_current = false where customer_id = 42 and is_current;\ninsert into dim_customer (customer_id, full_name, country_code, signup_date, segment, valid_from, is_current)\nselect customer_id, full_name, 'KE', signup_date, segment, current_date, true\nfrom dim_customer where customer_id = 42 and is_current = false order by valid_to desc limit 1;",
+          },
+          {
+            type: "callout",
+            title: "Le piège du Type 2 : toujours filtrer sur is_current pour l'état ACTUEL",
+            text: "Une fois une dimension passée en SCD Type 2, une requête qui oublie `where is_current = true` récupère TOUTES les versions historiques d'un client — dupliquant potentiellement les résultats d'une jointure. Le Type 2 est puissant mais demande une discipline systématique côté requêtes.",
           },
           {
             type: "exercise_choice",
@@ -3841,30 +4338,13 @@ async function main() {
           },
           {
             type: "sql_sandbox",
-            prompt:
-              "Livrable — vérifie le grain de fact_transactions : une ligne = une transaction. Compte les transaction_id en double (il ne doit y en avoir aucun).",
+            prompt: "Simule une requête qui ne récupère QUE la version actuelle de chaque client, en environnement SCD Type 2.",
             starterQuery:
-              "select transaction_id, count(*)\nfrom fact_transactions\ngroup by transaction_id\nhaving count(*) > 1;",
-          },
-          {
-            type: "thinking_prompt",
-            text: "Est-ce que je modélise pour la robustesse transactionnelle (3NF, zéro redondance) ou pour la vitesse analytique (star schema, redondance assumée) ? Les deux réponses ne produisent jamais les mêmes tables — et confondre les deux objectifs est l'erreur de modélisation la plus fréquente chez les débutants.",
+              "-- Si dim_customer était en SCD Type 2, la requête correcte serait :\n-- select * from dim_customer where is_current = true;\nselect customer_id, full_name, segment from dim_customer limit 10;",
           },
         ],
       },
       quiz: [
-        {
-          question: "Dans un schéma en étoile, les dimensions sont typiquement :",
-          options: ["Normalisées en 3NF", "Dénormalisées, reliées directement à la fact table", "Interdites"],
-          correct_index: 1,
-          explain: "C'est ce qui rend le star schema simple à interroger — au prix d'une redondance assumée.",
-        },
-        {
-          question: "Le \"grain\" d'une table de faits désigne :",
-          options: ["Sa taille en Go", "Ce que représente une seule ligne", "Le nombre de dimensions qui lui sont reliées"],
-          correct_index: 1,
-          explain: "Se tromper de grain casse silencieusement toutes les analyses construites dessus.",
-        },
         {
           question: "Un client change de pays et l'entreprise doit garder l'historique de qui il était avant. Quelle SCD ?",
           options: ["Type 0", "Type 1", "Type 2"],
@@ -3872,14 +4352,105 @@ async function main() {
           explain: "Type 2 ajoute une nouvelle ligne avec valid_from/valid_to — l'historique est préservé.",
         },
         {
-          question: "Le One Big Table (OBT) gagne du terrain aujourd'hui principalement parce que :",
+          question: "Quel est le risque principal d'une dimension en SCD Type 2 sans discipline de requête ?",
           options: [
-            "Le stockage colonnaire l'a rendu bon marché malgré la redondance",
-            "Il est plus normalisé qu'un star schema",
-            "Il n'existe plus de dimensions à gérer",
+            "Aucun risque particulier",
+            "Oublier `where is_current = true` peut faire remonter toutes les versions historiques d'une même entité, dupliquant les résultats",
+            "Le Type 2 empêche toute jointure",
           ],
-          correct_index: 0,
-          explain: "Avec Parquet/BigQuery/Snowflake, le coût de la redondance a fortement baissé, rendant l'OBT viable pour la lecture pure.",
+          correct_index: 1,
+          explain: "C'est le compromis du Type 2 : puissant pour l'historique, mais exigeant une discipline systématique.",
+        },
+        {
+          question: "Le SCD Type 1 se caractérise par :",
+          options: [
+            "La conservation de tout l'historique",
+            "L'écrasement de l'ancienne valeur, sans aucun historique conservé",
+            "Une colonne dédiée à la valeur précédente uniquement",
+          ],
+          correct_index: 1,
+          explain: "Utile pour une simple correction (faute de frappe) où l'historique n'a aucune valeur métier.",
+        },
+      ],
+    },
+
+    {
+      number: "2.6.10",
+      slug: "atelier-modeliser-verifier-grain-afripay",
+      title: "Atelier de synthèse : modéliser et vérifier le grain d'AfriPay",
+      parentSlug: "modelisation-de-donnees",
+      duration_minutes: 30,
+      sort_order: 10,
+      body_content: {
+        blocks: [
+          {
+            type: "p",
+            text: "Ce chapitre a couvert le pourquoi de la modélisation (2.6.1), MCD/MLD (2.6.2), la normalisation et son compromis analytique (2.6.3-2.6.4), la modélisation dimensionnelle complète — facts, dimensions, star schema (2.6.5-2.6.7) —, le grain et les surrogate keys (2.6.8), et les SCD (2.6.9). Cet atelier vérifie que le modèle AfriPay respecte réellement tout ce que tu viens d'apprendre.",
+          },
+          {
+            type: "checklist",
+            title: "Tu es prêt·e pour le Chapitre 2.7 si tu peux répondre oui à chaque point",
+            items: [
+              "Je sais expliquer la différence entre MCD et MLD à quelqu'un qui débute",
+              "Je sais dire pourquoi un entrepôt analytique dénormalise volontairement",
+              "Je sais identifier le grain d'une fact table et vérifier qu'il est respecté",
+              "Je sais pourquoi une surrogate key est préférable à une clé métier naturelle",
+              "Je sais choisir la bonne SCD selon le besoin réel de conservation d'historique",
+            ],
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 1 — Vérifie le grain de fact_transactions : une ligne = une transaction. Compte les transaction_id en double (il ne doit y en avoir aucun).",
+            starterQuery:
+              "select transaction_id, count(*)\nfrom fact_transactions\ngroup by transaction_id\nhaving count(*) > 1;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 2 — Vérifie l'intégrité référentielle complète : chaque transaction référence-t-elle un client, un marchand et un pays qui existent réellement ?",
+            starterQuery:
+              "select count(*) as transactions_orphelines\nfrom fact_transactions t\nleft join dim_customer c on c.customer_id = t.customer_id\nleft join dim_merchant m on m.merchant_id = t.merchant_id\nleft join dim_country co on co.country_code = t.country_code\nwhere c.customer_id is null or m.merchant_id is null or co.country_code is null;",
+          },
+          {
+            type: "sql_sandbox",
+            prompt:
+              "Étape 3 — Livrable : reconstitue le star schema complet en une seule requête, prête pour un tableau de bord (les 20 premières lignes).",
+            starterQuery:
+              "select t.transaction_id, c.full_name as client, m.merchant_name, co.country_name, t.amount_local, t.channel, t.status\nfrom fact_transactions t\njoin dim_customer c on c.customer_id = t.customer_id\njoin dim_merchant m on m.merchant_id = t.merchant_id\njoin dim_country co on co.country_code = t.country_code\nlimit 20;",
+          },
+        ],
+      },
+      quiz: [
+        {
+          question: "Que doit obligatoirement montrer une vérification du grain de fact_transactions ?",
+          options: [
+            "Qu'il existe des transaction_id en double",
+            "Qu'aucun transaction_id n'apparaît plus d'une fois",
+            "Que la table est vide",
+          ],
+          correct_index: 1,
+          explain: "Le grain \"une ligne = une transaction\" n'est respecté que si transaction_id est réellement unique.",
+        },
+        {
+          question: "Une transaction \"orpheline\" (sans client, marchand ou pays correspondant) signale :",
+          options: [
+            "Un comportement normal et attendu",
+            "Un problème d'intégrité référentielle à corriger",
+            "Une fonctionnalité recherchée du modèle",
+          ],
+          correct_index: 1,
+          explain: "Un modèle dimensionnel bien conçu garantit que chaque clé étrangère référence une ligne existante.",
+        },
+        {
+          question: "Ce chapitre a-t-il pour objectif de figer un modèle unique valable pour tous les cas ?",
+          options: [
+            "Oui, un seul modèle s'applique toujours",
+            "Non — le bon modèle dépend des questions métier et de l'arbitrage lecture/écriture recherché",
+            "La modélisation n'a aucun impact réel",
+          ],
+          correct_index: 1,
+          explain: "C'est le message central du chapitre depuis la Leçon 2.6.1 : modéliser, c'est répondre à des questions métier précises, pas suivre une recette universelle.",
         },
       ],
     },
