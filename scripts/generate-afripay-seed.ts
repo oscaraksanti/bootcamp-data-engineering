@@ -84,7 +84,7 @@ function isoDate(d: Date) {
 // Incrémenté à chaque changement de schéma — le bac à sable (SandboxProvider)
 // lit cette valeur dans le fichier généré et la compare à celle stockée dans
 // IndexedDB pour savoir s'il doit re-seeder plutôt que réutiliser un schéma périmé.
-const SANDBOX_SCHEMA_VERSION = 2;
+const SANDBOX_SCHEMA_VERSION = 3;
 
 const lines: string[] = [];
 lines.push("-- Jeu de données AfriPay — généré, ne pas éditer à la main.");
@@ -349,6 +349,9 @@ const transactions: Txn[] = [];
     const id = String(int(100000, 999999));
     const customerId = dirty < 0.05 ? "" : String(t.customerId);
     const amount = dirty < 0.05 ? "" : dirty < 0.1 ? String(t.amount).replace(".", ",") : String(t.amount);
+    // Référence marchand orpheline (~2%) — merchant_id qui n'existe pas dans dim_merchant,
+    // comme un vrai onboarding pas encore propagé côté référentiel.
+    const merchantIdRaw = rnd() < 0.02 ? String(t.merchantId + 1000) : String(t.merchantId);
     // Formats de date incohérents, comme une vraie source mal maîtrisée
     const rawDate =
       dirty < 0.3
@@ -357,7 +360,7 @@ const transactions: Txn[] = [];
           ? `${String(t.at.getUTCDate()).padStart(2, "0")}/${String(t.at.getUTCMonth() + 1).padStart(2, "0")}/${t.at.getUTCFullYear()}`
           : t.at.toISOString().slice(0, 10);
     rows.push(
-      `  (${sqlStr(id)}, ${customerId ? sqlStr(customerId) : "null"}, ${sqlStr(String(t.merchantId))}, ${sqlStr(t.countryCode)}, ${sqlStr(rawDate)}, ${amount ? sqlStr(amount) : "null"}, ${sqlStr(t.currency)}, ${sqlStr(t.channel)}, ${sqlStr(t.status)})`
+      `  (${sqlStr(id)}, ${customerId ? sqlStr(customerId) : "null"}, ${sqlStr(merchantIdRaw)}, ${sqlStr(t.countryCode)}, ${sqlStr(rawDate)}, ${amount ? sqlStr(amount) : "null"}, ${sqlStr(t.currency)}, ${sqlStr(t.channel)}, ${sqlStr(t.status)})`
     );
     // Environ 1 doublon sur 10 lignes sales, comme une extraction ré-exécutée
     if (rnd() < 0.1) {

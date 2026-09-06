@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed:module1": "tsx supabase/seed/seed-module-1.ts",
+    "seed:module2": "tsx supabase/seed/seed-module-2.ts",
     "generate:sandbox": "tsx scripts/generate-afripay-seed.ts"
   },
   "dependencies": {
