@@ -157,9 +157,14 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      <footer className="max-w-[1180px] mx-auto px-6 md:px-12 py-7 flex justify-between text-xs text-ink-faint border-t border-line">
-        <span>© 2026 DataLendo</span>
+      <footer className="max-w-[1180px] mx-auto px-6 md:px-12 py-7 flex flex-wrap gap-x-6 gap-y-2 justify-between text-xs text-ink-faint border-t border-line">
+        <span>© 2026 Eurêka Services — DataLendo</span>
         <span>Prix affichés en dollars américains (USD)</span>
+        <div className="flex gap-5">
+          <Link href="/mentions-legales" className="hover:text-ink">Mentions légales</Link>
+          <Link href="/cgv" className="hover:text-ink">CGV</Link>
+          <Link href="/confidentialite" className="hover:text-ink">Confidentialité</Link>
+        </div>
       </footer>
     </>
   );

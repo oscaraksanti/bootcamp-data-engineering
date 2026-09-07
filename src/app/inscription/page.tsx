@@ -39,6 +39,15 @@ export default function InscriptionPage() {
           >
             {pending ? "Création du compte…" : "Créer mon compte"}
           </button>
+
+          <p className="text-xs text-ink-faint text-center -mt-1">
+            En créant ton compte, tu acceptes nos{" "}
+            <Link href="/cgv" className="text-accent-ink underline">CGV</Link> et notre{" "}
+            <Link href="/confidentialite" className="text-accent-ink underline">
+              politique de confidentialité
+            </Link>
+            .
+          </p>
         </form>
 
         <p className="text-sm text-ink-faint mt-6">
