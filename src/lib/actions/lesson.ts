@@ -15,7 +15,8 @@ export async function addNote(lessonId: string, path: string, formData: FormData
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Non authentifié");
 
-  await supabase.from("notes").insert({ user_id: user.id, lesson_id: lessonId, body });
+  const { error } = await supabase.from("notes").insert({ user_id: user.id, lesson_id: lessonId, body });
+  if (error) throw new Error("La note n'a pas pu être enregistrée, réessaie.");
   revalidatePath(path);
 }
 
@@ -26,9 +27,10 @@ export async function markLessonComplete(lessonId: string, nextHref: string) {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Non authentifié");
 
-  await supabase
+  const { error } = await supabase
     .from("progress")
     .upsert({ user_id: user.id, lesson_id: lessonId }, { onConflict: "user_id,lesson_id" });
+  if (error) throw new Error("La progression n'a pas pu être enregistrée, réessaie.");
 
   redirect(nextHref);
 }
@@ -82,7 +84,7 @@ export async function submitQuiz(params: {
   const total = questions.length;
   const passed = score / total >= PASS_THRESHOLD;
 
-  await supabase.from("quiz_attempts").insert({
+  const { error: attemptError } = await supabase.from("quiz_attempts").insert({
     user_id: user.id,
     lesson_id: params.lessonId ?? null,
     module_id: params.moduleId ?? null,
@@ -90,6 +92,7 @@ export async function submitQuiz(params: {
     total,
     passed,
   });
+  if (attemptError) throw new Error("Le résultat du quiz n'a pas pu être enregistré, réessaie.");
 
   let certificateSlug: string | undefined;
 

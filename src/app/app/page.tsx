@@ -24,7 +24,16 @@ export default async function DashboardPage() {
     ? await supabase.from("progress").select("lesson_id").eq("user_id", user.id)
     : { data: [] };
 
+  const { data: certificates } = user
+    ? await supabase
+        .from("certificates")
+        .select("public_slug, module_id, issued_at")
+        .eq("user_id", user.id)
+        .order("issued_at", { ascending: false })
+    : { data: [] };
+
   const completedIds = new Set((progress ?? []).map((p) => p.lesson_id));
+  const certByModuleId = new Map((certificates ?? []).map((c) => [c.module_id, c]));
   const access = await getAccessSummary(supabase, user?.id);
 
   return (
@@ -41,7 +50,10 @@ export default async function DashboardPage() {
           const leaves = flattenLeaves(buildLessonTree(moduleLessons));
           const done = leaves.filter((l) => completedIds.has(l.id)).length;
           const total = leaves.length;
-          const firstLessonSlug = leaves[0]?.slug;
+          const isComplete = total > 0 && done === total;
+          const certificate = certByModuleId.get(m.id);
+          // Reprend à la première leçon non terminée, pas toujours la première du module.
+          const resumeSlug = (leaves.find((l) => !completedIds.has(l.id)) ?? leaves[0])?.slug;
           const unlocked = moduleIsUnlocked(m, access);
 
           const cardBody = (
@@ -50,7 +62,11 @@ export default async function DashboardPage() {
                 <span className="font-mono text-[11px] text-ink-faint">
                   MODULE {String(m.number).padStart(2, "0")}
                 </span>
-                {m.is_free ? (
+                {isComplete && certificate ? (
+                  <span className="font-mono text-[10px] uppercase text-accent-ink bg-accent-soft rounded-full px-2 py-0.5">
+                    🏆 Certifié
+                  </span>
+                ) : m.is_free ? (
                   <span className="font-mono text-[10px] uppercase text-success bg-success-soft rounded-full px-2 py-0.5">
                     Gratuit
                   </span>
@@ -70,7 +86,7 @@ export default async function DashboardPage() {
                     />
                   </div>
                   <span className="font-mono text-[11px] text-ink-faint">
-                    {done}/{total} leçons
+                    {isComplete ? "Terminé — voir le certificat →" : `${done}/${total} leçons`}
                   </span>
                 </>
               ) : unlocked ? (
@@ -102,17 +118,48 @@ export default async function DashboardPage() {
             );
           }
 
+          const cardHref = isComplete && certificate
+            ? `/certificat/${certificate.public_slug}`
+            : resumeSlug
+              ? `/app/modules/${m.slug}/lessons/${resumeSlug}`
+              : "#";
+
           return (
-            <Link
-              key={m.id}
-              href={firstLessonSlug ? `/app/modules/${m.slug}/lessons/${firstLessonSlug}` : "#"}
-              className={`${cardClass} hover:border-accent`}
-            >
+            <Link key={m.id} href={cardHref} className={`${cardClass} hover:border-accent`}>
               {cardBody}
             </Link>
           );
         })}
       </div>
+
+      {certificates && certificates.length > 0 && (
+        <div id="certificats" className="mt-10 scroll-mt-6">
+          <h2 className="font-display font-bold text-lg text-ink mb-3">Mes certificats</h2>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+            {certificates.map((c) => {
+              const m = (modules ?? []).find((mod) => mod.id === c.module_id);
+              return (
+                <Link
+                  key={c.public_slug}
+                  href={`/certificat/${c.public_slug}`}
+                  target="_blank"
+                  className="flex items-center gap-3 border border-line bg-surface rounded-xl px-4 py-3.5 hover:border-accent transition-colors"
+                >
+                  <span className="text-xl flex-none">🏆</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink truncate">
+                      {m ? m.title : "Certificat"}
+                    </p>
+                    <p className="font-mono text-[11px] text-ink-faint">
+                      Délivré le {new Date(c.issued_at).toLocaleDateString("fr-FR")}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {!access.hasFullAccess && (
         <div className="mt-8 border border-accent bg-accent-soft rounded-xl px-6 py-5 flex items-center justify-between flex-wrap gap-4">
