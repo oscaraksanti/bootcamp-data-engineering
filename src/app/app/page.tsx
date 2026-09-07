@@ -55,6 +55,9 @@ export default async function DashboardPage() {
           // Reprend à la première leçon non terminée, pas toujours la première du module.
           const resumeSlug = (leaves.find((l) => !completedIds.has(l.id)) ?? leaves[0])?.slug;
           const unlocked = moduleIsUnlocked(m, access);
+          // Le module existe dans le programme mais son contenu n'est pas encore écrit —
+          // à distinguer d'un module verrouillé qu'on peut débloquer en payant.
+          const notYetReleased = total === 0 && !m.is_free;
 
           const cardBody = (
             <>
@@ -65,6 +68,10 @@ export default async function DashboardPage() {
                 {isComplete && certificate ? (
                   <span className="font-mono text-[10px] uppercase text-accent-ink bg-accent-soft rounded-full px-2 py-0.5">
                     🏆 Certifié
+                  </span>
+                ) : notYetReleased ? (
+                  <span className="font-mono text-[10px] uppercase text-ink-faint bg-surface-2 border border-line rounded-full px-2 py-0.5">
+                    Bientôt
                   </span>
                 ) : m.is_free ? (
                   <span className="font-mono text-[10px] uppercase text-success bg-success-soft rounded-full px-2 py-0.5">
@@ -89,6 +96,10 @@ export default async function DashboardPage() {
                     {isComplete ? "Terminé — voir le certificat →" : `${done}/${total} leçons`}
                   </span>
                 </>
+              ) : notYetReleased ? (
+                <span className="font-mono text-[11px] text-ink-faint">
+                  À venir · {m.hours_min}–{m.hours_max}h estimées
+                </span>
               ) : unlocked ? (
                 <span className="font-mono text-[11px] text-ink-faint">Bientôt disponible</span>
               ) : (
@@ -101,6 +112,14 @@ export default async function DashboardPage() {
 
           const cardClass =
             "border border-line bg-surface rounded-xl px-5 py-4.5 shadow-[0_1px_2px_rgba(20,21,43,.05),0_10px_28px_-14px_rgba(20,21,43,.18)] transition-colors";
+
+          if (notYetReleased) {
+            return (
+              <div key={m.id} className={`${cardClass} opacity-70 cursor-default`}>
+                {cardBody}
+              </div>
+            );
+          }
 
           if (!unlocked) {
             return (
