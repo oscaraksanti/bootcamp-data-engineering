@@ -45,9 +45,13 @@ export default async function AppLayout({
             <FlameIcon />
             {profile?.streak_count ?? 0} jours
           </span>
-          <div className="w-[30px] h-[30px] rounded-full bg-accent flex items-center justify-center text-white text-xs font-semibold font-display">
+          <Link
+            href="/app/profil"
+            className="w-[30px] h-[30px] rounded-full bg-accent flex items-center justify-center text-white text-xs font-semibold font-display hover:opacity-90"
+            title="Mon profil"
+          >
             {initials}
-          </div>
+          </Link>
           <form action={signOut}>
             <button className="text-xs text-ink-faint hover:text-ink" type="submit">
               Se déconnecter
