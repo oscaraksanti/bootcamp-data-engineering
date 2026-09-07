@@ -22,7 +22,12 @@ export default function ConnexionPage() {
 
         <form action={formAction} className="mt-8 flex flex-col gap-4">
           <Field label="Email" name="email" type="email" required />
-          <Field label="Mot de passe" name="password" type="password" required />
+          <div>
+            <Field label="Mot de passe" name="password" type="password" required />
+            <Link href="/mot-de-passe-oublie" className="text-xs text-accent-ink font-medium mt-1.5 inline-block">
+              Mot de passe oublié ?
+            </Link>
+          </div>
 
           {state?.error && (
             <p className="text-sm text-danger bg-danger-soft rounded-lg px-3 py-2">
