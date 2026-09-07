@@ -19,7 +19,6 @@ import {
 } from "@/components/lesson/RichBlocks";
 import { SqlCode } from "@/components/lesson/SqlCode";
 import { SqlSandbox } from "@/components/lesson/SqlSandbox";
-import { SandboxProvider } from "@/components/lesson/SandboxProvider";
 import { StarSchema } from "@/components/lesson/StarSchema";
 import { Medallion } from "@/components/lesson/Medallion";
 
@@ -30,9 +29,7 @@ export function LessonBody({
   content: LessonBodyContent;
   bodyHtml?: string | null;
 }) {
-  const needsSandbox = content.blocks.some((b) => b.type === "sql_sandbox");
-
-  const body = (
+  return (
     <div className="flex flex-col">
       {bodyHtml && (
         <div
@@ -46,8 +43,6 @@ export function LessonBody({
       ))}
     </div>
   );
-
-  return needsSandbox ? <SandboxProvider>{body}</SandboxProvider> : body;
 }
 
 function Block({ block }: { block: LessonBlock }) {

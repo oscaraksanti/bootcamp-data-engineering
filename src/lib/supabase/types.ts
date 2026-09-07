@@ -94,8 +94,11 @@ export interface Database {
           lesson_id: string | null;
           module_id: string | null;
           question: string;
-          options: string[];
-          correct_index: number;
+          question_type: "multiple_choice" | "code";
+          options: string[] | null;
+          correct_index: number | null;
+          starter_query: string | null;
+          expected_query: string | null;
           explain: string | null;
           sort_order: number;
         };

@@ -18,7 +18,7 @@ export default async function EditLessonPage({
 
   const { data: questions } = await supabase
     .from("quiz_questions")
-    .select("id, question, options, correct_index, explain, sort_order")
+    .select("id, question, question_type, options, correct_index, starter_query, expected_query, explain, sort_order")
     .eq("lesson_id", lessonId)
     .order("sort_order");
 

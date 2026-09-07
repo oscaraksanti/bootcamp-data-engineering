@@ -77,3 +77,7 @@ export type LessonBlock =
 export interface LessonBodyContent {
   blocks: LessonBlock[];
 }
+
+export function contentHasSqlSandbox(blocks: LessonBlock[]): boolean {
+  return blocks.some((b) => b.type === "sql_sandbox");
+}

@@ -37,7 +37,7 @@ export type QuizResult = {
   score: number;
   total: number;
   passed: boolean;
-  perQuestion: { correct: boolean; correctIndex: number; explain: string | null }[];
+  perQuestion: { correct: boolean; correctIndex: number | null; explain: string | null }[];
   certificateSlug?: string;
 };
 
@@ -46,7 +46,11 @@ const PASS_THRESHOLD = 0.8;
 export async function submitQuiz(params: {
   lessonId?: string;
   moduleId?: string;
-  answers: number[];
+  answers: (number | null)[];
+  /** Résultat pass/fail calculé côté client pour les questions "code" —
+   * le serveur ne peut pas rejouer une requête contre le bac à sable
+   * PGlite de l'apprenant (il vit uniquement dans son navigateur). */
+  codeResults?: Record<number, boolean>;
 }): Promise<QuizResult> {
   const supabase = await createClient();
   const {
@@ -54,7 +58,10 @@ export async function submitQuiz(params: {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Non authentifié");
 
-  const query = supabase.from("quiz_questions").select("id, correct_index, explain").order("sort_order");
+  const query = supabase
+    .from("quiz_questions")
+    .select("id, question_type, correct_index, explain")
+    .order("sort_order");
   const { data: questions } = params.lessonId
     ? await query.eq("lesson_id", params.lessonId)
     : await query.eq("module_id", params.moduleId!);
@@ -64,7 +71,10 @@ export async function submitQuiz(params: {
   }
 
   const perQuestion = questions.map((q, i) => ({
-    correct: params.answers[i] === q.correct_index,
+    correct:
+      q.question_type === "code"
+        ? params.codeResults?.[i] === true
+        : params.answers[i] === q.correct_index,
     correctIndex: q.correct_index,
     explain: q.explain,
   }));

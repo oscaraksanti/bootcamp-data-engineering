@@ -27,6 +27,13 @@ export function useSandbox() {
   return ctx;
 }
 
+/** Comme useSandbox(), mais renvoie null au lieu de lever une erreur — pour
+ * les composants (ex. Quiz) qui ne savent pas à l'avance si un
+ * <SandboxProvider> les entoure. */
+export function useOptionalSandbox() {
+  return useContext(SandboxContext);
+}
+
 let seedSqlCache: string | null = null;
 async function loadSeedSql(): Promise<string> {
   if (seedSqlCache) return seedSqlCache;

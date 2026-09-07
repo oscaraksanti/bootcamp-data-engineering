@@ -123,6 +123,10 @@ export async function saveQuizQuestion(
 ) {
   const supabase = await requireAdmin();
 
+  const questionType: "multiple_choice" | "code" =
+    formData.get("question_type") === "code" ? "code" : "multiple_choice";
+  const isCode = questionType === "code";
+
   const options = [
     String(formData.get("option_0") ?? ""),
     String(formData.get("option_1") ?? ""),
@@ -133,8 +137,11 @@ export async function saveQuizQuestion(
     lesson_id: lessonId || null,
     module_id: lessonId ? null : moduleId,
     question: String(formData.get("question") ?? ""),
-    options,
-    correct_index: Number(formData.get("correct_index") ?? 0),
+    question_type: questionType,
+    options: isCode ? null : options,
+    correct_index: isCode ? null : Number(formData.get("correct_index") ?? 0),
+    starter_query: isCode ? String(formData.get("starter_query") ?? "").trim() || null : null,
+    expected_query: isCode ? String(formData.get("expected_query") ?? "").trim() || null : null,
     explain: String(formData.get("explain") ?? "") || null,
     sort_order: Number(formData.get("sort_order") ?? 0),
   };

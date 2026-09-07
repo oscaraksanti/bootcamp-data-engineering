@@ -3,10 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LessonBody } from "@/components/lesson/LessonBody";
 import { Quiz } from "@/components/quiz/Quiz";
+import { SandboxProvider } from "@/components/lesson/SandboxProvider";
 import { markLessonComplete, addNote } from "@/lib/actions/lesson";
 import { getAccessSummary, moduleIsUnlocked } from "@/lib/entitlements";
 import { buildLessonTree, flattenLeaves, type LessonNode } from "@/lib/lesson-tree";
-import type { LessonBodyContent } from "@/lib/lesson-blocks";
+import { contentHasSqlSandbox, type LessonBodyContent } from "@/lib/lesson-blocks";
 
 export default async function LessonPage({
   params,
@@ -62,14 +63,14 @@ export default async function LessonPage({
 
   const { data: quizQuestions } = await supabase
     .from("quiz_questions")
-    .select("id, question, options")
+    .select("id, question, question_type, options, starter_query, expected_query")
     .eq("lesson_id", lesson.id)
     .order("sort_order");
 
   const { data: moduleQuizQuestions } = isLastLesson
     ? await supabase
         .from("quiz_questions")
-        .select("id, question, options")
+        .select("id, question, question_type, options, starter_query, expected_query")
         .eq("module_id", courseModule.id)
         .order("sort_order")
     : { data: null };
@@ -89,6 +90,11 @@ export default async function LessonPage({
 
   const content = (fullLesson?.body_content ?? { blocks: [] }) as unknown as LessonBodyContent;
   const completedCount = leaves.filter((l) => completedIds.has(l.id)).length;
+
+  const needsSandbox =
+    contentHasSqlSandbox(content.blocks) ||
+    (quizQuestions ?? []).some((q) => q.question_type === "code") ||
+    (moduleQuizQuestions ?? []).some((q) => q.question_type === "code");
 
   return (
     <div className="grid lg:grid-cols-[280px_1fr_280px] flex-1">
@@ -142,26 +148,28 @@ export default async function LessonPage({
           </div>
         )}
 
-        <LessonBody content={content} bodyHtml={fullLesson?.body_html} />
+        <MaybeSandbox enabled={needsSandbox}>
+          <LessonBody content={content} bodyHtml={fullLesson?.body_html} />
 
-        {quizQuestions && quizQuestions.length > 0 && (
-          <section className="mt-9 border-t border-line pt-7">
-            <h3 className="font-display font-bold text-lg text-ink mb-4">Quiz de la leçon</h3>
-            <Quiz questions={quizQuestions} lessonId={lesson.id} />
-          </section>
-        )}
+          {quizQuestions && quizQuestions.length > 0 && (
+            <section className="mt-9 border-t border-line pt-7">
+              <h3 className="font-display font-bold text-lg text-ink mb-4">Quiz de la leçon</h3>
+              <Quiz questions={quizQuestions} lessonId={lesson.id} />
+            </section>
+          )}
 
-        {isLastLesson && moduleQuizQuestions && moduleQuizQuestions.length > 0 && (
-          <section className="mt-9 border-t border-line pt-7">
-            <h3 className="font-display font-bold text-lg text-ink mb-1">
-              Quiz final du module — {courseModule.title}
-            </h3>
-            <p className="text-sm text-ink-soft mb-4">
-              80% pour valider et débloquer ton certificat du Module {String(courseModule.number).padStart(2, "0")}.
-            </p>
-            <Quiz questions={moduleQuizQuestions} moduleId={courseModule.id} />
-          </section>
-        )}
+          {isLastLesson && moduleQuizQuestions && moduleQuizQuestions.length > 0 && (
+            <section className="mt-9 border-t border-line pt-7">
+              <h3 className="font-display font-bold text-lg text-ink mb-1">
+                Quiz final du module — {courseModule.title}
+              </h3>
+              <p className="text-sm text-ink-soft mb-4">
+                80% pour valider et débloquer ton certificat du Module {String(courseModule.number).padStart(2, "0")}.
+              </p>
+              <Quiz questions={moduleQuizQuestions} moduleId={courseModule.id} />
+            </section>
+          )}
+        </MaybeSandbox>
 
         <div className="flex justify-between items-center mt-9 pt-5 border-t border-line">
           {prevLesson ? (
@@ -213,6 +221,10 @@ export default async function LessonPage({
       </aside>
     </div>
   );
+}
+
+function MaybeSandbox({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  return enabled ? <SandboxProvider>{children}</SandboxProvider> : children;
 }
 
 function LessonTreeItem({
