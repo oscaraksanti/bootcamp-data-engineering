@@ -37,6 +37,15 @@ export default async function AppLayout({
         <Link href="/app/sandbox" className="text-[13.5px] text-ink-soft hover:text-ink">
           Bac à sable SQL
         </Link>
+        <Link href="/app/communaute" className="text-[13.5px] text-ink-soft hover:text-ink">
+          Communauté
+        </Link>
+        <Link href="/app/offres" className="text-[13.5px] text-ink-soft hover:text-ink">
+          Offres
+        </Link>
+        <Link href="/app/lives" className="text-[13.5px] text-ink-soft hover:text-ink">
+          Lives
+        </Link>
         <Link href="/app#certificats" className="text-[13.5px] text-ink-soft hover:text-ink">
           Mes certificats
         </Link>

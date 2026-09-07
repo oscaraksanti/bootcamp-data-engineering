@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LessonBody } from "@/components/lesson/LessonBody";
 import { Quiz } from "@/components/quiz/Quiz";
 import { SandboxProvider } from "@/components/lesson/SandboxProvider";
+import { LessonComments, type LessonCommentItem } from "@/components/lesson/LessonComments";
 import { markLessonComplete, addNote } from "@/lib/actions/lesson";
 import { getAccessSummary, moduleIsUnlocked } from "@/lib/entitlements";
 import { buildLessonTree, flattenLeaves, type LessonNode } from "@/lib/lesson-tree";
@@ -81,6 +82,25 @@ export default async function LessonPage({
     .eq("user_id", user.id)
     .eq("lesson_id", lesson.id)
     .order("created_at", { ascending: false });
+
+  const { data: lessonComments } = await supabase
+    .from("lesson_comments")
+    .select("id, user_id, parent_id, body, created_at")
+    .eq("lesson_id", lesson.id)
+    .order("created_at", { ascending: true });
+
+  const commentAuthorIds = new Set((lessonComments ?? []).map((c) => c.user_id));
+  const { data: commentProfiles } = commentAuthorIds.size > 0
+    ? await supabase.from("profiles").select("id, full_name").in("id", Array.from(commentAuthorIds))
+    : { data: [] };
+  const commentAuthorName = new Map((commentProfiles ?? []).map((p) => [p.id, p.full_name || "Apprenant"]));
+  const lessonCommentItems: LessonCommentItem[] = (lessonComments ?? []).map((c) => ({
+    id: c.id,
+    body: c.body,
+    created_at: c.created_at,
+    parent_id: c.parent_id,
+    authorName: commentAuthorName.get(c.user_id) ?? "Apprenant",
+  }));
 
   const prevLesson = leaves[currentIndex - 1];
   const nextLesson = leaves[currentIndex + 1];
@@ -170,6 +190,8 @@ export default async function LessonPage({
             </section>
           )}
         </MaybeSandbox>
+
+        <LessonComments lessonId={lesson.id} path={currentPath} comments={lessonCommentItems} />
 
         <div className="flex justify-between items-center mt-9 pt-5 border-t border-line">
           {prevLesson ? (
